@@ -1,14 +1,20 @@
 const express = require('express');
 const router = express.Router();
+const adminController = require('../controllers/adminController');
 
-// Placeholder: Block day
-router.post('/block-day', (req, res) => {
-  res.json({ message: 'Block day endpoint' });
-});
+// Admin dashboard
+router.get('/dashboard', adminController.getDashboard);
 
-// Placeholder: Create slot
-router.post('/create-slot', (req, res) => {
-  res.json({ message: 'Create slot endpoint' });
-});
+// Block day (single or recurring)
+router.post('/block-day', adminController.blockDay);
+
+// Create time slots
+router.post('/create-slots', adminController.createSlots);
+
+// Get blocked days
+router.get('/blocked-days', adminController.getBlockedDays);
+
+// Unblock a day
+router.delete('/unblock-day/:date', adminController.unblockDay);
 
 module.exports = router; 

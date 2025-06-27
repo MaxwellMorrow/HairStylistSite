@@ -1,19 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const appointmentsController = require('../controllers/appointmentsController');
 
-// Placeholder: Book appointment
-router.post('/book', (req, res) => {
-  res.json({ message: 'Book appointment endpoint' });
-});
+// Book appointment
+router.post('/book', appointmentsController.book);
 
-// Placeholder: List appointments
-router.get('/', (req, res) => {
-  res.json({ message: 'List appointments endpoint' });
-});
+// List appointments
+router.get('/', appointmentsController.list);
 
-// Placeholder: Block slot
-router.post('/block', (req, res) => {
-  res.json({ message: 'Block slot endpoint' });
-});
+// Block slot
+router.post('/block', appointmentsController.block);
 
 module.exports = router; 

@@ -1,15 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const authController = require('../controllers/authController');
 
-// Placeholder: Register
-router.post('/register', (req, res) => {
-  res.json({ message: 'Register endpoint' });
-});
+// Register
+router.post('/register', authController.register);
 
-// Placeholder: Login
-router.post('/login', (req, res) => {
-  res.json({ message: 'Login endpoint' });
-});
+// Login
+router.post('/login', authController.login);
+
+// Logout
+router.post('/logout', authController.logout);
+
+// Get current user
+router.get('/me', authController.getCurrentUser);
 
 // Placeholder: Google OAuth
 router.get('/google', (req, res) => {

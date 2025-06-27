@@ -14,8 +14,18 @@ exports.register = async (req, res) => {
     }
     const user = new User({ name, email, password });
     await user.save();
-    req.session.userId = user._id;
-    res.status(201).json({ user: user.toJSON() });
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+    
+    res.status(201).json({ 
+      user: user.toJSON(),
+      token 
+    });
   } catch (err) {
     res.status(500).json({ error: 'Registration failed.', details: err.message });
   }
@@ -35,17 +45,27 @@ exports.login = async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
-    req.session.userId = user._id;
-    res.json({ user: user.toJSON() });
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+    
+    res.json({ 
+      user: user.toJSON(),
+      token 
+    });
   } catch (err) {
     res.status(500).json({ error: 'Login failed.', details: err.message });
   }
 };
 
 exports.logout = (req, res) => {
-  req.session.destroy(() => {
-    res.json({ message: 'Logged out.' });
-  });
+  // JWT tokens are stateless, so we just return success
+  // The client should remove the token from localStorage
+  res.json({ message: 'Logged out.' });
 };
 
 // Get current user

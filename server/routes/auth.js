@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { authenticateToken } = require('../middleware/auth');
 
 // Register
 router.post('/register', authController.register);
@@ -11,8 +12,8 @@ router.post('/login', authController.login);
 // Logout
 router.post('/logout', authController.logout);
 
-// Get current user
-router.get('/me', authController.getCurrentUser);
+// Get current user (requires authentication)
+router.get('/me', authenticateToken, authController.getCurrentUser);
 
 // Placeholder: Google OAuth
 router.get('/google', (req, res) => {

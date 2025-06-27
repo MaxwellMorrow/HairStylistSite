@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import { servicesAPI, availabilityAPI, appointmentsAPI } from '../services/api';
 import toast from 'react-hot-toast';
-import { Calendar, Clock, Check, ChevronLeft, ChevronRight, MapPin, Phone, Mail } from 'lucide-react';
+import { Calendar, Clock, Check, ChevronLeft, ChevronRight, Phone, Mail, Upload, X } from 'lucide-react';
 
 const Booking = () => {
   const { user } = useAuth();
@@ -16,15 +16,48 @@ const Booking = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDates, setAvailableDates] = useState([]);
+  const [inspoPhotos, setInspoPhotos] = useState([]);
 
   const {
     register,
-    handleSubmit,
-    formState: { errors },
-    watch
+    handleSubmit
   } = useForm();
 
-  const watchClientNotes = watch('clientNotes', '');
+  const pad = n => n.toString().padStart(2, '0');
+
+  const handleFileUpload = (event) => {
+    const files = Array.from(event.target.files);
+    const validFiles = files.filter(file => 
+      file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024 // 5MB limit
+    );
+    
+    if (validFiles.length !== files.length) {
+      toast.error('Some files were skipped. Only images under 5MB are allowed.');
+    }
+    
+    if (inspoPhotos.length + validFiles.length > 5) {
+      toast.error('Maximum 5 inspiration photos allowed');
+      return;
+    }
+    
+    const newPhotos = validFiles.map(file => ({
+      file,
+      id: Date.now() + Math.random(),
+      preview: URL.createObjectURL(file)
+    }));
+    
+    setInspoPhotos(prev => [...prev, ...newPhotos]);
+  };
+
+  const removePhoto = (id) => {
+    setInspoPhotos(prev => {
+      const photo = prev.find(p => p.id === id);
+      if (photo) {
+        URL.revokeObjectURL(photo.preview);
+      }
+      return prev.filter(p => p.id !== id);
+    });
+  };
 
   useEffect(() => {
     fetchServices();
@@ -33,12 +66,6 @@ const Booking = () => {
   useEffect(() => {
     fetchAvailableDates(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
   }, [currentMonth]);
-
-  useEffect(() => {
-    if (selectedDate && selectedService) {
-      fetchAvailableSlots();
-    }
-  }, [selectedDate, selectedService]);
 
   const fetchServices = async () => {
     try {
@@ -50,9 +77,8 @@ const Booking = () => {
     }
   };
 
-  const fetchAvailableSlots = async () => {
+  const fetchAvailableSlots = useCallback(async () => {
     if (!selectedDate || !selectedService) return;
-
     try {
       setLoading(true);
       const response = await availabilityAPI.getAvailableSlots({
@@ -66,7 +92,13 @@ const Booking = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, selectedService]);
+
+  useEffect(() => {
+    if (selectedDate && selectedService) {
+      fetchAvailableSlots();
+    }
+  }, [selectedDate, selectedService, fetchAvailableSlots]);
 
   const fetchAvailableDates = async (year, month) => {
     try {
@@ -87,7 +119,6 @@ const Booking = () => {
     setSelectedDate(date);
     setSelectedTime(null);
     setCurrentStep(3);
-    // Fetch available slots for this date and service
     if (selectedService) {
       fetchAvailableSlots();
     }
@@ -110,6 +141,11 @@ const Booking = () => {
       return;
     }
 
+    if (!user) {
+      toast.error('Please log in to book an appointment');
+      return;
+    }
+
     try {
       setLoading(true);
       
@@ -121,18 +157,21 @@ const Booking = () => {
       const endTime = new Date(startTime);
       endTime.setMinutes(endTime.getMinutes() + selectedService.duration);
 
-      const appointmentData = {
-        service: selectedService._id,
-        date: selectedDate.toISOString().split('T')[0],
-        startTime: selectedTime,
-        endTime: endTime.toTimeString().slice(0, 5),
-        duration: selectedService.duration,
-        totalCost: selectedService.price,
-        clientNotes: data.clientNotes || '',
-        notes: ''
-      };
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('clientId', user._id);
+      formData.append('serviceId', selectedService._id);
+      formData.append('date', selectedDate.toISOString().split('T')[0]);
+      formData.append('startTime', selectedTime);
+      formData.append('endTime', endTime.toTimeString().slice(0, 5));
+      formData.append('clientNotes', data.clientNotes || '');
+      
+      // Append inspiration photos
+      inspoPhotos.forEach((photo, index) => {
+        formData.append('inspoPhotos', photo.file);
+      });
 
-      await appointmentsAPI.createAppointment(appointmentData);
+      await appointmentsAPI.createAppointment(formData);
       
       toast.success('Appointment booked successfully!');
       
@@ -141,6 +180,10 @@ const Booking = () => {
       setSelectedDate(null);
       setSelectedTime(null);
       setCurrentStep(1);
+      setInspoPhotos([]);
+      
+      // Redirect to user appointments page
+      window.location.href = '/appointments';
       
     } catch (error) {
       console.error('Error booking appointment:', error);
@@ -154,7 +197,6 @@ const Booking = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
@@ -174,20 +216,22 @@ const Booking = () => {
       const isToday = date.toDateString() === currentDate.toDateString();
       const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
       const isPast = date < todayStart;
-      const isAvailable = availableDates.some(d => new Date(d).toDateString() === date.toDateString());
+      const dateISO = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      const isAvailable = availableDates.includes(dateISO);
       
       // Debug: Log specific date info
       if (isCurrentMonth && !isPast) {
-        console.log(`Date ${date.toDateString()}: isAvailable=${isAvailable}`);
+        console.log(`Date ${date.toDateString()}: isAvailable=${availableDates.includes(dateISO)}`);
       }
       
       const dayClasses = [
         'p-2 text-center cursor-pointer border border-gray-200 min-h-[40px] flex items-center justify-center',
-        isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400',
+        !isCurrentMonth ? 'bg-gray-50 text-gray-400' : '',
+        isAvailable && isCurrentMonth && !isPast ? 'bg-green-100 hover:bg-green-200' : '',
+        !isAvailable && isCurrentMonth && !isPast && !isToday && !isSelected ? 'bg-white' : '',
         isToday ? 'bg-blue-100 font-bold' : '',
         isSelected ? 'bg-blue-500 text-white' : '',
         isPast ? 'text-gray-400 cursor-not-allowed' : '',
-        isAvailable && isCurrentMonth && !isPast ? 'bg-green-100 hover:bg-green-200' : '',
         !isCurrentMonth || isPast ? 'cursor-not-allowed' : 'hover:bg-gray-100'
       ].filter(Boolean).join(' ');
       
@@ -197,13 +241,7 @@ const Booking = () => {
           className={dayClasses}
           onClick={() => {
             if (isCurrentMonth && !isPast && isAvailable) {
-              setSelectedDate(date);
-              setSelectedTime(null);
-              setCurrentStep(3);
-              // Fetch available slots for this date and service
-              if (selectedService) {
-                fetchAvailableSlots();
-              }
+              handleDateSelect(date);
             }
           }}
         >
@@ -456,8 +494,66 @@ const Booking = () => {
             />
           </div>
           
+          {/* Inspiration Photos */}
+          <div>
+            <label className="form-label">Inspiration Photos (Optional)</label>
+            <p className="text-sm text-gray-600 mb-3">
+              Upload photos to help your stylist understand your vision. Max 5 photos, 5MB each.
+            </p>
+            
+            {/* File Upload */}
+            <div className="mb-4">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="inspo-photos"
+                disabled={inspoPhotos.length >= 5}
+              />
+              <label
+                htmlFor="inspo-photos"
+                className={`
+                  inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium
+                  ${inspoPhotos.length >= 5 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50 cursor-pointer'
+                  }
+                `}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Add Photos
+              </label>
+              {inspoPhotos.length >= 5 && (
+                <span className="ml-2 text-sm text-gray-500">Maximum photos reached</span>
+              )}
+            </div>
+            
+            {/* Photo Preview Grid */}
+            {inspoPhotos.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {inspoPhotos.map((photo) => (
+                  <div key={photo.id} className="relative group">
+                    <img
+                      src={photo.preview}
+                      alt="Inspiration"
+                      className="w-full h-24 object-cover rounded-lg"
+                    />
+                    <button
+                      onClick={() => removePhoto(photo.id)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
           {/* Contact Info */}
-          {user && (
+          {user ? (
             <div className="p-4 bg-blue-50 rounded-lg">
               <h4 className="font-semibold text-blue-900 mb-2">Contact Information</h4>
               <div className="space-y-1 text-sm text-blue-800">
@@ -471,6 +567,21 @@ const Booking = () => {
                     <span>{user.phone}</span>
                   </div>
                 )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+              <h4 className="font-semibold text-yellow-900 mb-2">Login Required</h4>
+              <p className="text-sm text-yellow-800 mb-3">
+                You need to be logged in to book an appointment. Please log in or create an account to continue.
+              </p>
+              <div className="flex space-x-3">
+                <a href="/login" className="btn-primary btn-sm">
+                  Log In
+                </a>
+                <a href="/register" className="btn-secondary btn-sm">
+                  Create Account
+                </a>
               </div>
             </div>
           )}
@@ -570,10 +681,10 @@ const Booking = () => {
             <div className="mt-8 text-center">
               <button
                 onClick={handleSubmit(onSubmit)}
-                disabled={loading}
-                className="btn-primary btn-lg"
+                disabled={loading || !user}
+                className={`btn-lg ${user ? 'btn-primary' : 'btn-secondary cursor-not-allowed'}`}
               >
-                {loading ? 'Booking...' : 'Confirm Booking'}
+                {loading ? 'Booking...' : user ? 'Confirm Booking' : 'Please Log In to Book'}
               </button>
             </div>
           )}

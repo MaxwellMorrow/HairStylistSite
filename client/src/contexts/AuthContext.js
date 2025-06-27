@@ -24,17 +24,25 @@ export const AuthProvider = ({ children }) => {
   const checkAuthStatus = async () => {
     try {
       setLoading(true);
-      // Try to get current user from session
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setUser(null);
+        return;
+      }
+      
+      // Try to get current user using the token
       const response = await axios.get('/api/auth/me', {
-        withCredentials: true
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
       
       if (response.data.user) {
         setUser(response.data.user);
       }
     } catch (error) {
-      // User is not authenticated, which is fine
-      console.log('User not authenticated');
+      // Token is invalid or expired, remove it
+      localStorage.removeItem('token');
       setUser(null);
     } finally {
       setLoading(false);
@@ -46,13 +54,13 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.post('/api/auth/login', {
         email,
         password
-      }, {
-        withCredentials: true
       });
 
-      setUser(response.data.user);
+      const { user, token } = response.data;
+      setUser(user);
+      localStorage.setItem('token', token);
       toast.success('Login successful!');
-      return response.data.user;
+      return user;
     } catch (error) {
       const message = error.response?.data?.error || 'Login failed';
       toast.error(message);
@@ -66,13 +74,13 @@ export const AuthProvider = ({ children }) => {
         name,
         email,
         password
-      }, {
-        withCredentials: true
       });
 
-      setUser(response.data.user);
+      const { user, token } = response.data;
+      setUser(user);
+      localStorage.setItem('token', token);
       toast.success('Registration successful!');
-      return response.data.user;
+      return user;
     } catch (error) {
       const message = error.response?.data?.error || 'Registration failed';
       toast.error(message);
@@ -82,14 +90,13 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('/api/auth/logout', {}, {
-        withCredentials: true
-      });
-      setUser(null);
-      toast.success('Logged out successfully');
+      await axios.post('/api/auth/logout');
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
       setUser(null);
+      localStorage.removeItem('token');
+      toast.success('Logged out successfully');
     }
   };
 

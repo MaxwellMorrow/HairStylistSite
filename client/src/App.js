@@ -9,10 +9,12 @@ import Gallery from './pages/Gallery';
 import Booking from './pages/Booking';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import UserAppointments from './pages/UserAppointments';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminServices from './pages/AdminServices';
 import AdminGallery from './pages/AdminGallery';
 import AdminAvailability from './pages/AdminAvailability';
+import AdminAppointments from './pages/AdminAppointments';
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -28,6 +30,14 @@ function App() {
             <Route path="/booking" element={<Booking />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route 
+              path="/appointments" 
+              element={
+                <ProtectedRoute>
+                  <UserAppointments />
+                </ProtectedRoute>
+              } 
+            />
             <Route 
               path="/admin" 
               element={
@@ -57,6 +67,14 @@ function App() {
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <AdminAvailability />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/appointments" 
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminAppointments />
                 </ProtectedRoute>
               } 
             />

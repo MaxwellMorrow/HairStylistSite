@@ -12,6 +12,10 @@ const api = axios.create({
 // Request interceptor to add auth headers if needed
 api.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
@@ -71,7 +75,7 @@ export const servicesAPI = {
 
 // Appointments API
 export const appointmentsAPI = {
-  createAppointment: (appointmentData) => api.post('/appointments', appointmentData),
+  createAppointment: (appointmentData) => api.post('/appointments/book', appointmentData),
   getAll: (params) => api.get('/appointments', { params }),
   getById: (id) => api.get(`/appointments/${id}`),
   update: (id, appointmentData) => api.put(`/appointments/${id}`, appointmentData),
@@ -79,6 +83,12 @@ export const appointmentsAPI = {
   getUserAppointments: () => api.get('/appointments/user'),
   book: (appointmentData) => api.post('/appointments/book', appointmentData),
   block: (blockData) => api.post('/appointments/block', blockData),
+  updatePhotos: (id, formData) => api.put(`/appointments/${id}/photos`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  deletePhoto: (id, photoIndex) => api.delete(`/appointments/${id}/photos/${photoIndex}`),
 };
 
 // Gallery API

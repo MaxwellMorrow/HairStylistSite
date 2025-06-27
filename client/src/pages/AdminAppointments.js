@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { appointmentsAPI, availabilityAPI } from '../services/api';
 import toast from 'react-hot-toast';
-import { Calendar, Clock, User, Phone, Mail, Edit, Trash2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, User, Phone, Mail, Edit, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const AdminAppointments = () => {
   const [appointments, setAppointments] = useState([]);
@@ -12,6 +12,9 @@ const AdminAppointments = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [calendarData, setCalendarData] = useState({ appointments: [], blockedDates: [], availability: [] });
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const [viewingPhotos, setViewingPhotos] = useState([]);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   const {
     register,
@@ -20,17 +23,7 @@ const AdminAppointments = () => {
     formState: { errors }
   } = useForm();
 
-  useEffect(() => {
-    fetchCalendarData();
-  }, [currentMonth]);
-
-  useEffect(() => {
-    if (selectedDate) {
-      fetchAppointmentsForDate();
-    }
-  }, [selectedDate]);
-
-  const fetchCalendarData = async () => {
+  const fetchCalendarData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await availabilityAPI.getCalendarData({
@@ -44,9 +37,9 @@ const AdminAppointments = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth]);
 
-  const fetchAppointmentsForDate = async () => {
+  const fetchAppointmentsForDate = useCallback(async () => {
     if (!selectedDate) return;
 
     try {
@@ -58,7 +51,17 @@ const AdminAppointments = () => {
       console.error('Error fetching appointments:', error);
       toast.error('Failed to load appointments');
     }
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchCalendarData();
+  }, [fetchCalendarData]);
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAppointmentsForDate();
+    }
+  }, [selectedDate, fetchAppointmentsForDate]);
 
   const handleEditAppointment = (appointment) => {
     setSelectedAppointment(appointment);
@@ -66,6 +69,54 @@ const AdminAppointments = () => {
     setValue('notes', appointment.notes || '');
     setShowEditModal(true);
   };
+
+  const openPhotoViewer = (photos, startIndex = 0) => {
+    setViewingPhotos(photos);
+    setCurrentPhotoIndex(startIndex);
+    setShowPhotoViewer(true);
+  };
+
+  const nextPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev + 1) % viewingPhotos.length);
+  };
+
+  const prevPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev - 1 + viewingPhotos.length) % viewingPhotos.length);
+  };
+
+  const closePhotoViewer = () => {
+    setShowPhotoViewer(false);
+    setViewingPhotos([]);
+    setCurrentPhotoIndex(0);
+  };
+
+  // Keyboard navigation for photo viewer
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!showPhotoViewer) return;
+      
+      switch (e.key) {
+        case 'Escape':
+          closePhotoViewer();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          prevPhoto();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          nextPhoto();
+          break;
+        default:
+          break;
+      }
+    };
+
+    if (showPhotoViewer) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showPhotoViewer]);
 
   const onSubmitEdit = async (data) => {
     try {
@@ -105,7 +156,6 @@ const AdminAppointments = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
@@ -199,6 +249,52 @@ const AdminAppointments = () => {
             <p className="text-sm text-gray-600">
               Client: {selectedAppointment.client?.name} ({selectedAppointment.client?.email})
             </p>
+            
+            {/* Inspiration Photos in Edit Modal */}
+            {selectedAppointment.inspoPhotos && selectedAppointment.inspoPhotos.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-semibold text-gray-900 text-sm">
+                    Inspiration Photos ({selectedAppointment.inspoPhotos.length})
+                  </h4>
+                  <button
+                    onClick={() => openPhotoViewer(selectedAppointment.inspoPhotos)}
+                    className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedAppointment.inspoPhotos.map((photo, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={photo}
+                        alt={`Inspiration ${index + 1}`}
+                        className="w-full h-20 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => openPhotoViewer(selectedAppointment.inspoPhotos, index)}
+                        title="Click to view full size"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded flex items-center justify-center">
+                        <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100">
+                          View Full
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Click photos to view full size</p>
+              </div>
+            )}
+            
+            {/* Client Notes in Edit Modal */}
+            {selectedAppointment.clientNotes && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-1 text-sm">Client Notes:</h4>
+                <p className="text-sm text-gray-700 bg-white p-2 rounded border">
+                  {selectedAppointment.clientNotes}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -319,10 +415,28 @@ const AdminAppointments = () => {
                           <div className="mt-1">
                             <div className="w-2 h-2 bg-red-500 rounded-full mx-auto"></div>
                             <span className="text-xs block mt-1">{day.appointments.length}</span>
+                            {/* Show indicator for appointments with photos */}
+                            {day.appointments.some(apt => apt.inspoPhotos && apt.inspoPhotos.length > 0) && (
+                              <div className="w-1 h-1 bg-blue-500 rounded-full mx-auto mt-1" title="Has inspiration photos"></div>
+                            )}
                           </div>
                         )}
                       </button>
                     ))}
+                  </div>
+                </div>
+                
+                {/* Calendar Legend */}
+                <div className="p-4 border-t bg-gray-50">
+                  <div className="flex flex-wrap gap-4 text-xs">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                      <span>Appointments</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                      <span>Has Photos</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -384,6 +498,34 @@ const AdminAppointments = () => {
                           </div>
                         )}
                         
+                        {/* Inspiration Photos */}
+                        {appointment.inspoPhotos && appointment.inspoPhotos.length > 0 && (
+                          <div className="mb-3">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-semibold text-gray-900 mb-2 text-sm">Inspiration Photos ({appointment.inspoPhotos.length}):</h4>
+                              <button
+                                onClick={() => openPhotoViewer(appointment.inspoPhotos)}
+                                className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                              >
+                                View All
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {appointment.inspoPhotos.map((photo, index) => (
+                                <div key={index} className="relative">
+                                  <img
+                                    src={photo}
+                                    alt={`Inspiration ${index + 1}`}
+                                    className="w-full h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => openPhotoViewer(appointment.inspoPhotos, index)}
+                                    title="Click to view full size"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
                         {appointment.notes && (
                           <div className="mb-3 p-2 bg-yellow-50 rounded text-sm text-yellow-800">
                             <strong>Admin Notes:</strong> {appointment.notes}
@@ -423,6 +565,72 @@ const AdminAppointments = () => {
 
         {/* Edit Modal */}
         {showEditModal && <EditModal />}
+
+        {/* Photo Viewer Modal */}
+        {showPhotoViewer && (
+          <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+            <div className="relative w-full h-full flex items-center justify-center">
+              {/* Close button */}
+              <button
+                onClick={closePhotoViewer}
+                className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+              >
+                <X className="h-8 w-8" />
+              </button>
+
+              {/* Photo counter */}
+              <div className="absolute top-4 left-4 text-white z-10">
+                {currentPhotoIndex + 1} / {viewingPhotos.length}
+              </div>
+
+              {/* Main photo */}
+              <img
+                src={viewingPhotos[currentPhotoIndex]}
+                alt="Inspiration photo"
+                className="max-w-full max-h-full object-contain"
+              />
+
+              {/* Navigation buttons */}
+              {viewingPhotos.length > 1 && (
+                <>
+                  <button
+                    onClick={prevPhoto}
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                  <button
+                    onClick={nextPhoto}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                </>
+              )}
+
+              {/* Thumbnail strip */}
+              {viewingPhotos.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                  {viewingPhotos.map((photo, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentPhotoIndex(index)}
+                      className={`w-16 h-12 rounded overflow-hidden border-2 transition-all ${
+                        index === currentPhotoIndex ? 'border-white' : 'border-transparent'
+                      }`}
+                    >
+                      <img
+                        src={photo}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

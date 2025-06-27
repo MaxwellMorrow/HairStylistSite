@@ -70,7 +70,7 @@ availabilitySchema.virtual('dayName').get(function() {
 // Method to get time slots for this availability
 availabilitySchema.methods.getTimeSlots = function() {
   const slots = [];
-  const slotDuration = 30; // Default 30-minute slots
+  const slotDuration = this.slotDuration || 30; // Use the actual slot duration
   
   if (this.allDay) {
     // For all-day availability, create slots from 9 AM to 5 PM

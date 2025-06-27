@@ -44,6 +44,10 @@ const appointmentSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  inspoPhotos: [{
+    type: String,
+    trim: true
+  }],
   isBlocked: {
     type: Boolean,
     default: false
@@ -51,7 +55,32 @@ const appointmentSchema = new mongoose.Schema({
   reminderSent: {
     type: Boolean,
     default: false
-  }
+  },
+  sameDayReminderSent: {
+    type: Boolean,
+    default: false
+  },
+  notificationHistory: [{
+    type: {
+      type: String,
+      enum: ['booking_confirmation', 'reminder', 'same_day_reminder', 'cancellation', 'admin_notification'],
+      required: true
+    },
+    sentAt: {
+      type: Date,
+      default: Date.now
+    },
+    method: {
+      type: String,
+      enum: ['email', 'sms', 'both'],
+      required: true
+    },
+    recipient: {
+      type: String,
+      enum: ['client', 'admin'],
+      required: true
+    }
+  }]
 }, {
   timestamps: true
 });

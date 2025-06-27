@@ -166,7 +166,9 @@ exports.getAvailableSlots = async (req, res) => {
       return res.status(400).json({ error: 'Date is required.' });
     }
     
-    const requestedDate = new Date(date);
+    // Parse date properly to avoid timezone issues
+    const [year, month, day] = date.split('-').map(Number);
+    const requestedDate = new Date(year, month - 1, day);
     
     // Get all availability settings that apply to this date
     const allAvailability = await Availability.find({ isActive: true });
@@ -189,7 +191,8 @@ exports.getAvailableSlots = async (req, res) => {
     // Get all time slots from applicable availability
     let allSlots = [];
     applicableAvailability.forEach(avail => {
-      allSlots = allSlots.concat(avail.getTimeSlots());
+      const slots = avail.getTimeSlots();
+      allSlots = allSlots.concat(slots);
     });
     
     // Remove duplicates and sort
@@ -240,10 +243,17 @@ exports.getAvailableSlots = async (req, res) => {
       
       // Check if this slot fits within any availability window
       const fitsInAvailability = applicableAvailability.some(avail => {
-        const availStart = new Date(`2000-01-01T${avail.startTime}:00`);
-        const availEnd = new Date(`2000-01-01T${avail.endTime}:00`);
-        
-        return slotStart >= availStart && slotEnd <= availEnd;
+        if (avail.allDay) {
+          // For all-day availability, just check if the slot is within 9 AM to 5 PM
+          const slotHour = parseInt(slot.split(':')[0]);
+          return slotHour >= 9 && slotHour < 17;
+        } else {
+          // For specific time ranges
+          const availStart = new Date(`2000-01-01T${avail.startTime}:00`);
+          const availEnd = new Date(`2000-01-01T${avail.endTime}:00`);
+          
+          return slotStart >= availStart && slotEnd <= availEnd;
+        }
       });
       
       if (!fitsInAvailability) {

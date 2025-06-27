@@ -176,6 +176,16 @@ exports.getAvailableSlots = async (req, res) => {
       return res.json({ slots: [] }); // No availability for this day
     }
     
+    // Get service duration if serviceId is provided
+    let serviceDuration = 30; // Default 30 minutes
+    if (serviceId) {
+      const Service = require('../models/Service');
+      const service = await Service.findById(serviceId);
+      if (service && service.duration) {
+        serviceDuration = service.duration;
+      }
+    }
+    
     // Get all time slots from applicable availability
     let allSlots = [];
     applicableAvailability.forEach(avail => {
@@ -200,11 +210,49 @@ exports.getAvailableSlots = async (req, res) => {
         $lt: new Date(requestedDate.getFullYear(), requestedDate.getMonth(), requestedDate.getDate() + 1)
       },
       status: { $nin: ['cancelled', 'no-show'] }
+    }).populate('service', 'duration');
+    
+    // Filter out slots that would conflict with existing appointments
+    const conflictingSlots = [];
+    existingAppointments.forEach(appointment => {
+      const appointmentStart = new Date(`2000-01-01T${appointment.startTime}:00`);
+      const appointmentEnd = new Date(appointmentStart.getTime() + (appointment.service?.duration || 30) * 60000);
+      
+      allSlots.forEach(slot => {
+        const slotStart = new Date(`2000-01-01T${slot}:00`);
+        const slotEnd = new Date(slotStart.getTime() + serviceDuration * 60000);
+        
+        // Check if there's any overlap
+        if (slotStart < appointmentEnd && slotEnd > appointmentStart) {
+          conflictingSlots.push(slot);
+        }
+      });
     });
     
-    // Filter out booked slots
-    const bookedSlots = existingAppointments.map(apt => apt.startTime);
-    const availableSlots = allSlots.filter(slot => !bookedSlots.includes(slot));
+    // Filter out conflicting slots
+    const availableSlots = allSlots.filter(slot => !conflictingSlots.includes(slot));
+    
+    // Filter out slots that would run outside availability windows
+    const slotsOutsideAvailability = [];
+    availableSlots.forEach(slot => {
+      const slotStart = new Date(`2000-01-01T${slot}:00`);
+      const slotEnd = new Date(slotStart.getTime() + serviceDuration * 60000);
+      
+      // Check if this slot fits within any availability window
+      const fitsInAvailability = applicableAvailability.some(avail => {
+        const availStart = new Date(`2000-01-01T${avail.startTime}:00`);
+        const availEnd = new Date(`2000-01-01T${avail.endTime}:00`);
+        
+        return slotStart >= availStart && slotEnd <= availEnd;
+      });
+      
+      if (!fitsInAvailability) {
+        slotsOutsideAvailability.push(slot);
+      }
+    });
+    
+    // Filter out slots outside availability
+    const finalSlots = availableSlots.filter(slot => !slotsOutsideAvailability.includes(slot));
     
     // Filter out slots that are in the past (if today)
     const now = new Date();
@@ -212,11 +260,11 @@ exports.getAvailableSlots = async (req, res) => {
     
     if (isToday) {
       const currentTime = now.toTimeString().slice(0, 5);
-      const futureSlots = availableSlots.filter(slot => slot > currentTime);
+      const futureSlots = finalSlots.filter(slot => slot > currentTime);
       return res.json({ slots: futureSlots });
     }
     
-    res.json({ slots: availableSlots });
+    res.json({ slots: finalSlots });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get available slots.', details: err.message });
   }
@@ -342,5 +390,83 @@ exports.getCalendarData = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get calendar data.', details: err.message });
+  }
+};
+
+// Get available dates for a specific month
+exports.getAvailableDates = async (req, res) => {
+  try {
+    const { year, month } = req.params;
+    
+    if (!year || !month) {
+      return res.status(400).json({ error: 'Year and month are required.' });
+    }
+    
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const endDate = new Date(parseInt(year), parseInt(month), 0);
+    
+    // Get all availability settings
+    const allAvailability = await Availability.find({ isActive: true });
+    
+    // Get all blocked dates
+    const blockedDates = await BlockedDate.find({ isActive: true });
+    
+    // Get existing appointments for this month
+    const existingAppointments = await Appointment.find({
+      date: { $gte: startDate, $lte: endDate },
+      status: { $nin: ['cancelled', 'no-show'] }
+    });
+    
+    const availableDates = [];
+    const currentDate = new Date();
+    
+    // Check each day in the month
+    for (let day = 1; day <= endDate.getDate(); day++) {
+      const checkDate = new Date(parseInt(year), parseInt(month) - 1, day);
+      
+      // Skip past dates
+      if (checkDate < new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())) {
+        continue;
+      }
+      
+      // Check if date has availability
+      const applicableAvailability = allAvailability.filter(avail => avail.appliesToDate(checkDate));
+      
+      if (applicableAvailability.length === 0) {
+        continue; // No availability for this day
+      }
+      
+      // Check if date is blocked
+      const isBlocked = blockedDates.some(block => block.isBlocked(checkDate));
+      
+      if (isBlocked) {
+        continue; // Day is blocked
+      }
+      
+      // Check if there are any available slots (considering existing appointments)
+      const dayAppointments = existingAppointments.filter(apt => 
+        apt.date.toDateString() === checkDate.toDateString()
+      );
+      
+      // If there are no appointments or there's still availability, add the date
+      if (dayAppointments.length === 0) {
+        availableDates.push(checkDate.toISOString().split('T')[0]);
+      } else {
+        // Check if there are still available slots after existing appointments
+        // This is a simplified check - in practice, you might want to do a full slot calculation
+        const totalSlots = applicableAvailability.reduce((total, avail) => {
+          const slots = avail.getTimeSlots();
+          return total + slots.length;
+        }, 0);
+        
+        if (dayAppointments.length < totalSlots) {
+          availableDates.push(checkDate.toISOString().split('T')[0]);
+        }
+      }
+    }
+    
+    res.json(availableDates);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get available dates.', details: err.message });
   }
 }; 

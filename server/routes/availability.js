@@ -21,6 +21,9 @@ router.delete('/deactivate/:dayOfWeek', availabilityController.deactivateAvailab
 // Get available time slots for a specific date
 router.get('/slots', availabilityController.getAvailableSlots);
 
+// Get available dates for a specific month
+router.get('/dates/:year/:month', availabilityController.getAvailableDates);
+
 // Get all blocked dates
 router.get('/blocked', availabilityController.getBlockedDates);
 

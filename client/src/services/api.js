@@ -113,6 +113,7 @@ export const availabilityAPI = {
   setAvailability: (availabilityData) => api.post('/availability/set', availabilityData),
   deactivateAvailability: (dayOfWeek) => api.delete(`/availability/deactivate/${dayOfWeek}`),
   getAvailableSlots: (params) => api.get('/availability/slots', { params }),
+  getAvailableDates: (params) => api.get(`/availability/dates/${params.year}/${params.month}`),
   getBlockedDates: () => api.get('/availability/blocked'),
   createBlockedDate: (blockData) => api.post('/availability/blocked', blockData),
   updateBlockedDate: (id, blockData) => api.put(`/availability/blocked/${id}`, blockData),

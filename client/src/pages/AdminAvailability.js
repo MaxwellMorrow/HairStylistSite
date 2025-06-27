@@ -51,6 +51,12 @@ const AdminAvailability = () => {
   };
 
   const handleDateClick = (date) => {
+    // Only allow clicking on current month dates
+    const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+    if (!isCurrentMonth) {
+      return;
+    }
+
     if (viewMode === 'availability') {
       // Check if this specific date already has availability set
       const dateString = date.toISOString().split('T')[0];
@@ -198,38 +204,39 @@ const AdminAvailability = () => {
     const days = [];
     const today = new Date();
     
+    // Generate 6 weeks of days (42 days total)
     for (let i = 0; i < 42; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + i);
       
       const isCurrentMonth = date.getMonth() === month;
       const isToday = date.toDateString() === today.toDateString();
+      const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      // Check if this date has availability set
       const dateString = date.toISOString().split('T')[0];
+      const hasAvailability = availability.some(avail => 
+        avail.date && new Date(avail.date).toISOString().split('T')[0] === dateString
+      );
       
-      // Check if this specific date has availability set
-      const hasAvailability = availability.some(avail => {
-        if (avail.isRecurring) {
-          return avail.dayOfWeek === date.getDay() && avail.isActive;
-        } else {
-          return avail.date && new Date(avail.date).toISOString().split('T')[0] === dateString && avail.isActive;
-        }
-      });
+      // Check if this date is blocked
+      const isBlocked = blockedDates.some(block => 
+        !block.isRecurring && new Date(block.date).toISOString().split('T')[0] === dateString
+      );
       
-      // Check if this specific date is blocked
-      const isBlocked = blockedDates.some(block => {
-        if (block.isRecurring) {
-          return block.recurringDayOfWeek === date.getDay() && block.isActive;
-        } else {
-          return block.date && new Date(block.date).toISOString().split('T')[0] === dateString && block.isActive;
-        }
-      });
+      // Check if this date has recurring availability
+      const hasRecurringAvailability = availability.some(avail => 
+        avail.isRecurring && avail.dayOfWeek === date.getDay()
+      );
       
       days.push({
         date,
         isCurrentMonth,
         isToday,
+        isPast,
         hasAvailability,
-        isBlocked
+        isBlocked,
+        hasRecurringAvailability
       });
     }
     
@@ -659,36 +666,37 @@ const AdminAvailability = () => {
                   
                   <div className="grid grid-cols-7 gap-1">
                     {getCalendarDays().map((day, index) => (
-                      <button
+                      <div
                         key={index}
-                        onClick={() => day.isCurrentMonth && handleDateClick(day.date)}
-                        disabled={!day.isCurrentMonth}
+                        onClick={() => handleDateClick(day.date)}
                         className={`
-                          p-3 text-sm rounded-lg transition-all duration-200 min-h-[60px] flex flex-col items-center justify-center
-                          ${!day.isCurrentMonth
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : day.isToday
-                              ? 'ring-2 ring-primary-500'
-                              : ''
+                          p-2 text-center cursor-pointer border border-gray-200 min-h-[60px] flex flex-col justify-center
+                          ${day.isCurrentMonth 
+                            ? 'bg-white hover:bg-gray-50' 
+                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                           }
-                          ${viewMode === 'availability' 
-                            ? day.hasAvailability
-                              ? 'bg-green-100 text-green-800 hover:bg-green-200 border-2 border-green-300'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-gray-300'
-                            : day.isBlocked
-                              ? 'bg-red-100 text-red-800 hover:bg-red-200 border-2 border-red-300'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-gray-300'
-                          }
+                          ${day.isToday ? 'ring-2 ring-blue-500' : ''}
+                          ${day.isPast && day.isCurrentMonth ? 'text-gray-400' : ''}
+                          ${day.hasAvailability ? 'bg-green-100 border-green-300' : ''}
+                          ${day.hasRecurringAvailability ? 'bg-blue-100 border-blue-300' : ''}
+                          ${day.isBlocked ? 'bg-red-100 border-red-300' : ''}
+                          ${viewMode === 'availability' && day.isCurrentMonth && !day.isPast ? 'hover:bg-blue-50' : ''}
+                          ${viewMode === 'blocked' && day.isCurrentMonth && !day.isPast ? 'hover:bg-red-50' : ''}
                         `}
                       >
-                        <span className="font-medium">{day.date.getDate()}</span>
-                        {day.hasAvailability && viewMode === 'availability' && (
-                          <div className="w-2 h-2 bg-green-500 rounded-full mt-1"></div>
+                        <div className="text-sm font-medium">
+                          {day.date.getDate()}
+                        </div>
+                        {day.hasAvailability && (
+                          <div className="text-xs text-green-600 mt-1">Available</div>
                         )}
-                        {day.isBlocked && viewMode === 'blocked' && (
-                          <div className="w-2 h-2 bg-red-500 rounded-full mt-1"></div>
+                        {day.hasRecurringAvailability && !day.hasAvailability && (
+                          <div className="text-xs text-blue-600 mt-1">Recurring</div>
                         )}
-                      </button>
+                        {day.isBlocked && (
+                          <div className="text-xs text-red-600 mt-1">Blocked</div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

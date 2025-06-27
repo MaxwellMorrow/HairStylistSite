@@ -15,6 +15,7 @@ const Booking = () => {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [availableDates, setAvailableDates] = useState([]);
 
   const {
     register,
@@ -30,7 +31,11 @@ const Booking = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedDate) {
+    fetchAvailableDates(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+  }, [currentMonth]);
+
+  useEffect(() => {
+    if (selectedDate && selectedService) {
       fetchAvailableSlots();
     }
   }, [selectedDate, selectedService]);
@@ -63,6 +68,15 @@ const Booking = () => {
     }
   };
 
+  const fetchAvailableDates = async (year, month) => {
+    try {
+      const response = await availabilityAPI.getAvailableDates({ year, month });
+      setAvailableDates(response.data);
+    } catch (error) {
+      console.error('Error fetching available dates:', error);
+    }
+  };
+
   const handleServiceSelect = (service) => {
     setSelectedService(service);
     setSelectedTime(null);
@@ -73,6 +87,10 @@ const Booking = () => {
     setSelectedDate(date);
     setSelectedTime(null);
     setCurrentStep(3);
+    // Fetch available slots for this date and service
+    if (selectedService) {
+      fetchAvailableSlots();
+    }
   };
 
   const handleTimeSelect = (time) => {
@@ -132,7 +150,7 @@ const Booking = () => {
     }
   };
 
-  const getCalendarDays = () => {
+  const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
@@ -141,24 +159,57 @@ const Booking = () => {
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
     const days = [];
-    const today = new Date();
+    const currentDate = new Date();
+    const todayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    
+    // Debug: Log available dates
+    console.log('Available dates:', availableDates);
+    console.log('Current month:', year, month + 1);
     
     for (let i = 0; i < 42; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + i);
       
       const isCurrentMonth = date.getMonth() === month;
-      const isToday = date.toDateString() === today.toDateString();
-      const isPast = date < today;
+      const isToday = date.toDateString() === currentDate.toDateString();
       const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+      const isPast = date < todayStart;
+      const isAvailable = availableDates.some(d => new Date(d).toDateString() === date.toDateString());
       
-      days.push({
-        date,
-        isCurrentMonth,
-        isToday,
-        isPast,
-        isSelected
-      });
+      // Debug: Log specific date info
+      if (isCurrentMonth && !isPast) {
+        console.log(`Date ${date.toDateString()}: isAvailable=${isAvailable}`);
+      }
+      
+      const dayClasses = [
+        'p-2 text-center cursor-pointer border border-gray-200 min-h-[40px] flex items-center justify-center',
+        isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400',
+        isToday ? 'bg-blue-100 font-bold' : '',
+        isSelected ? 'bg-blue-500 text-white' : '',
+        isPast ? 'text-gray-400 cursor-not-allowed' : '',
+        isAvailable && isCurrentMonth && !isPast ? 'bg-green-100 hover:bg-green-200' : '',
+        !isCurrentMonth || isPast ? 'cursor-not-allowed' : 'hover:bg-gray-100'
+      ].filter(Boolean).join(' ');
+      
+      days.push(
+        <div
+          key={i}
+          className={dayClasses}
+          onClick={() => {
+            if (isCurrentMonth && !isPast && isAvailable) {
+              setSelectedDate(date);
+              setSelectedTime(null);
+              setCurrentStep(3);
+              // Fetch available slots for this date and service
+              if (selectedService) {
+                fetchAvailableSlots();
+              }
+            }
+          }}
+        >
+          {date.getDate()}
+        </div>
+      );
     }
     
     return days;
@@ -262,26 +313,25 @@ const Booking = () => {
           </div>
           
           <div className="grid grid-cols-7 gap-1">
-            {getCalendarDays().map((day, index) => (
-              <button
-                key={index}
-                onClick={() => !day.isPast && day.isCurrentMonth && handleDateSelect(day.date)}
-                disabled={day.isPast || !day.isCurrentMonth}
-                className={`
-                  p-2 text-sm rounded-lg transition-colors duration-200
-                  ${day.isSelected 
-                    ? 'bg-primary-600 text-white' 
-                    : day.isToday 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : day.isPast || !day.isCurrentMonth
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'hover:bg-gray-100 text-gray-700'
-                  }
-                `}
-              >
-                {day.date.getDate()}
-              </button>
-            ))}
+            {renderCalendar()}
+          </div>
+        </div>
+        
+        {/* Calendar Legend */}
+        <div className="p-4 border-t bg-gray-50">
+          <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+              <span>Available</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded"></div>
+              <span>Today</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-blue-500 border border-blue-600 rounded"></div>
+              <span>Selected</span>
+            </div>
           </div>
         </div>
       </div>
@@ -298,7 +348,14 @@ const Booking = () => {
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Select Time</h2>
-        <p className="text-gray-600">Choose an available time slot</p>
+        <p className="text-gray-600">Choose an available time slot for your {selectedService?.duration}-minute appointment</p>
+        {selectedService && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg inline-block">
+            <p className="text-sm text-blue-700">
+              <strong>{selectedService.name}</strong> - {selectedService.duration} minutes
+            </p>
+          </div>
+        )}
       </div>
       
       {loading ? (
@@ -310,6 +367,9 @@ const Booking = () => {
         <div className="text-center py-12">
           <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No available time slots for this date</p>
+          <p className="text-sm text-gray-400 mt-2">
+            This could be due to existing appointments or insufficient time for a {selectedService?.duration}-minute service
+          </p>
           <button
             onClick={() => setCurrentStep(2)}
             className="btn-primary mt-4"

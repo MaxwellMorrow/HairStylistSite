@@ -9,26 +9,26 @@ const Services = () => {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoading(true);
+        const params = {};
+        if (selectedCategory) {
+          params.category = selectedCategory;
+        }
+        const response = await servicesAPI.getAll(params);
+        setServices(response.data.services || []);
+      } catch (error) {
+        console.error('Error fetching services:', error);
+        toast.error('Failed to load services');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchServices();
     fetchCategories();
-  }, [selectedCategory, fetchServices]);
-
-  const fetchServices = async () => {
-    try {
-      setLoading(true);
-      const params = {};
-      if (selectedCategory) {
-        params.category = selectedCategory;
-      }
-      const response = await servicesAPI.getAll(params);
-      setServices(response.data.services || []);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      toast.error('Failed to load services');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [selectedCategory]);
 
   const fetchCategories = async () => {
     try {

@@ -76,13 +76,17 @@ const AdminAppointments = () => {
     setShowPhotoViewer(true);
   };
 
-  const nextPhoto = () => {
-    setCurrentPhotoIndex((prev) => (prev + 1) % viewingPhotos.length);
-  };
+  const nextPhoto = useCallback(() => {
+    setCurrentPhotoIndex(prev => 
+      prev === viewingPhotos.length - 1 ? 0 : prev + 1
+    );
+  }, [viewingPhotos.length]);
 
-  const prevPhoto = () => {
-    setCurrentPhotoIndex((prev) => (prev - 1 + viewingPhotos.length) % viewingPhotos.length);
-  };
+  const prevPhoto = useCallback(() => {
+    setCurrentPhotoIndex(prev => 
+      prev === 0 ? viewingPhotos.length - 1 : prev - 1
+    );
+  }, [viewingPhotos.length]);
 
   const closePhotoViewer = () => {
     setShowPhotoViewer(false);

@@ -10,26 +10,26 @@ const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
+    const fetchGallery = async () => {
+      try {
+        setLoading(true);
+        const params = {};
+        if (selectedCategory) {
+          params.category = selectedCategory;
+        }
+        const response = await galleryAPI.getAll(params);
+        setGallery(response.data.gallery || []);
+      } catch (error) {
+        console.error('Error fetching gallery:', error);
+        toast.error('Failed to load gallery images');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchGallery();
     fetchCategories();
-  }, [selectedCategory, fetchGallery]);
-
-  const fetchGallery = async () => {
-    try {
-      setLoading(true);
-      const params = {};
-      if (selectedCategory) {
-        params.category = selectedCategory;
-      }
-      const response = await galleryAPI.getAll(params);
-      setGallery(response.data.gallery || []);
-    } catch (error) {
-      console.error('Error fetching gallery:', error);
-      toast.error('Failed to load gallery images');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [selectedCategory]);
 
   const fetchCategories = async () => {
     try {

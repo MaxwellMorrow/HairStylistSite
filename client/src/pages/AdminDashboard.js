@@ -7,17 +7,13 @@ import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [notificationStatus, setNotificationStatus] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
-    fetchNotificationStatus();
   }, []);
 
   const fetchDashboardData = async () => {
     try {
-      setLoading(true);
       await Promise.all([
         appointmentsAPI.getAll(),
         servicesAPI.getServices()
@@ -25,24 +21,6 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchNotificationStatus = async () => {
-    try {
-      const response = await fetch('/api/admin/notification-status', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      if (response.ok) {
-        const status = await response.json();
-        setNotificationStatus(status);
-      }
-    } catch (error) {
-      console.error('Error fetching notification status:', error);
     }
   };
 

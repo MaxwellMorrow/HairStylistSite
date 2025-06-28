@@ -18,7 +18,7 @@ const AdminGallery = () => {
     handleSubmit,
     reset,
     setValue,
-    formState: { errors }
+    formState: { }
   } = useForm();
 
   // Fetch gallery on component mount

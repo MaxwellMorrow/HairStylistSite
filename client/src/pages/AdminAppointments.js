@@ -116,7 +116,7 @@ const AdminAppointments = () => {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [showPhotoViewer]);
+  }, [showPhotoViewer, nextPhoto, prevPhoto]);
 
   const onSubmitEdit = async (data) => {
     try {
@@ -586,7 +586,7 @@ const AdminAppointments = () => {
               {/* Main photo */}
               <img
                 src={viewingPhotos[currentPhotoIndex]}
-                alt="Inspiration photo"
+                alt="Inspiration"
                 className="max-w-full max-h-full object-contain"
               />
 

@@ -12,7 +12,7 @@ const Gallery = () => {
   useEffect(() => {
     fetchGallery();
     fetchCategories();
-  }, [selectedCategory]);
+  }, [selectedCategory, fetchGallery]);
 
   const fetchGallery = async () => {
     try {

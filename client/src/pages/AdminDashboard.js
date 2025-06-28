@@ -2,21 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ApiTest from '../components/ApiTest';
 import { useAuth } from '../contexts/AuthContext';
-import { appointmentsAPI, servicesAPI, availabilityAPI } from '../services/api';
+import { appointmentsAPI, servicesAPI } from '../services/api';
 import toast from 'react-hot-toast';
-import { Calendar, Users, DollarSign, Clock, Bell, Mail, MessageSquare } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalAppointments: 0,
-    pendingAppointments: 0,
-    totalServices: 0,
-    totalRevenue: 0
-  });
   const [loading, setLoading] = useState(true);
   const [notificationStatus, setNotificationStatus] = useState(null);
-  const [testNotification, setTestNotification] = useState({ type: 'email', email: '', phone: '' });
 
   useEffect(() => {
     fetchDashboardData();
@@ -26,24 +18,10 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [appointmentsRes, servicesRes] = await Promise.all([
+      await Promise.all([
         appointmentsAPI.getAll(),
         servicesAPI.getServices()
       ]);
-
-      const appointments = appointmentsRes.data.appointments || [];
-      const services = servicesRes.data.services || [];
-
-      const totalRevenue = appointments
-        .filter(apt => apt.status === 'completed')
-        .reduce((sum, apt) => sum + (apt.totalCost || 0), 0);
-
-      setStats({
-        totalAppointments: appointments.length,
-        pendingAppointments: appointments.filter(apt => apt.status === 'pending').length,
-        totalServices: services.length,
-        totalRevenue
-      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -65,29 +43,6 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching notification status:', error);
-    }
-  };
-
-  const handleTestNotification = async () => {
-    try {
-      const response = await fetch('/api/admin/test-notification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(testNotification)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(result.message);
-      } else {
-        toast.error('Failed to send test notification');
-      }
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      toast.error('Failed to send test notification');
     }
   };
 

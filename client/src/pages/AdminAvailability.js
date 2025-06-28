@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { availabilityAPI } from '../services/api';
-import { Calendar, Clock, X, Plus, Edit, Trash2, ChevronLeft, ChevronRight, Settings, Save } from 'lucide-react';
+import { Calendar, X, Plus, Edit, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
 const AdminAvailability = () => {
   const [availability, setAvailability] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(null);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [editingAvailability, setEditingAvailability] = useState(null);
@@ -197,7 +196,6 @@ const AdminAvailability = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
@@ -241,14 +239,6 @@ const AdminAvailability = () => {
     }
     
     return days;
-  };
-
-  const formatTime = (time) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   const formatDate = (date) => {

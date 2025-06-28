@@ -11,7 +11,7 @@ const Services = () => {
   useEffect(() => {
     fetchServices();
     fetchCategories();
-  }, [selectedCategory]);
+  }, [selectedCategory, fetchServices]);
 
   const fetchServices = async () => {
     try {

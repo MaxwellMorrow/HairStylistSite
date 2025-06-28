@@ -23,14 +23,49 @@ jobs:
         with:
           node-version: '22.x'
 
-      - name: npm install, build, and test
+      - name: Install dependencies and build
         run: |
-          npm run install-all
-          npm run build --if-present
-          npm run test --if-present
+          # Install root dependencies
+          npm install
+          
+          # Install server dependencies
+          cd server
+          npm install
+          cd ..
+          
+          # Install client dependencies
+          cd client
+          npm install
+          cd ..
+          
+          # Build React app
+          cd client
+          npm run build
+          cd ..
+          
+          # Copy build files to server/public
+          mkdir -p server/public
+          cp -r client/build/* server/public/
+
+      - name: Prepare deployment package
+        run: |
+          # Create a deployment directory
+          mkdir deployment
+          
+          # Copy server files to deployment root
+          cp -r server/* deployment/
+          
+          # Copy server package.json to root
+          cp server/package.json deployment/
+          
+          # Copy web.config
+          cp server/web.config deployment/
 
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: |
+          # Create deployment package
+          cd deployment
+          zip -r ../release.zip . -x "node_modules/*" "uploads/*"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4

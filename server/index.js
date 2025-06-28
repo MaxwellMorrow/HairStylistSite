@@ -9,6 +9,25 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Debug environment variables
+console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('MONGODB_URI length:', process.env.MONGODB_URI ? process.env.MONGODB_URI.length : 0);
+console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
+console.log('EMAIL_USER exists:', !!process.env.EMAIL_USER);
+console.log('EMAIL_PASS exists:', !!process.env.EMAIL_PASS);
+console.log('ADMIN_EMAIL exists:', !!process.env.ADMIN_EMAIL);
+
+// Check for connection strings
+const connectionStringKeys = Object.keys(process.env).filter(key => 
+  key.startsWith('CUSTOMCONNSTR_') || key.startsWith('SQLAZURECONNSTR_')
+);
+console.log('Connection string keys found:', connectionStringKeys);
+
+console.log('=== END DEBUG ===');
+
 // Trust proxy for rate limiting
 app.set('trust proxy', 1);
 
@@ -40,6 +59,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Database connection
+console.log('Attempting to connect to MongoDB...');
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Set (hidden for security)' : 'NOT SET');
+
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/hairstylist', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -104,4 +126,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/hairstyli
     console.log(`Server running on port ${PORT}`);
   });
 })
-.catch(err => console.error('MongoDB connection error:', err)); 
+.catch(err => {
+  console.error('MongoDB connection error:', err);
+  console.error('Error details:', err.message);
+  process.exit(1);
+}); 

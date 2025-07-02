@@ -2,9 +2,14 @@ import axios from 'axios';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api'),
+  baseURL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mariahshairsite-dedugvcfbrafh7eu.westus2-01.azurewebsites.net/api' : 'http://localhost:5000/api'),
   withCredentials: true,
 });
+
+// Log the configured base URL for debugging
+console.log('[API CONFIG] Base URL:', api.defaults.baseURL);
+console.log('[API CONFIG] NODE_ENV:', process.env.NODE_ENV);
+console.log('[API CONFIG] REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
 
 // Request interceptor to add auth headers if needed
 api.interceptors.request.use(
@@ -13,17 +18,36 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Debug logging for production
+    console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`, {
+      data: config.data,
+      params: config.params,
+      headers: config.headers
+    });
+    
     return config;
   },
   (error) => {
+    console.error('[API REQUEST ERROR]', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`[API RESPONSE] ${response.config.method?.toUpperCase()} ${response.config.url}`, response.status);
+    return response;
+  },
   (error) => {
+    console.error(`[API ERROR] ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
     if (error.response?.status === 401) {
       // Handle unauthorized access
       console.log('Unauthorized access');

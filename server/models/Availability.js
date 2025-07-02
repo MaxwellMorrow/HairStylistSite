@@ -120,14 +120,7 @@ availabilitySchema.methods.appliesToDate = function(checkDate) {
       availabilityDate.getUTCDate()
     ));
     
-    console.log(`  appliesToDate check:`, {
-      availabilityId: this._id,
-      availabilityDate: this.date ? this.date.toISOString() : 'null',
-      checkDate: checkDate.toISOString(),
-      availabilityDateOnly: availabilityDateOnly.toISOString(),
-      checkDateOnly: checkDateOnly.toISOString(),
-      matches: checkDateOnly.getTime() === availabilityDateOnly.getTime()
-    });
+    // Date comparison completed
     
     return checkDateOnly.getTime() === availabilityDateOnly.getTime();
   }

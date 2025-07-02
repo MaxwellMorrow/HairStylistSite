@@ -4,9 +4,6 @@ import axios from 'axios';
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api'),
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // Request interceptor to add auth headers if needed
@@ -75,13 +72,12 @@ export const servicesAPI = {
 
 // Appointments API
 export const appointmentsAPI = {
-  createAppointment: (appointmentData) => api.post('/appointments/book', appointmentData),
+  createAppointment: (formData) => api.post('/appointments/book', formData),
   getAll: (params) => api.get('/appointments', { params }),
   getById: (id) => api.get(`/appointments/${id}`),
   update: (id, appointmentData) => api.put(`/appointments/${id}`, appointmentData),
   delete: (id) => api.delete(`/appointments/${id}`),
   getUserAppointments: () => api.get('/appointments/user'),
-  book: (appointmentData) => api.post('/appointments/book', appointmentData),
   block: (blockData) => api.post('/appointments/block', blockData),
   updatePhotos: (id, formData) => api.put(`/appointments/${id}/photos`, formData, {
     headers: {

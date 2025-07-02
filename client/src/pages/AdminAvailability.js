@@ -2,18 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { availabilityAPI } from '../services/api';
-import { Calendar, X, Plus, Edit, ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { Calendar, X, Edit, ChevronLeft, ChevronRight, Save } from 'lucide-react';
+
+// Helper function to format date as YYYY-MM-DD in UTC
+const getUTCDateString = (date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+
+// Add this helper function
+const getLocalDateString = (date) => {
+  return date.toISOString().split('T')[0];
+};
 
 const AdminAvailability = () => {
   const [availability, setAvailability] = useState([]);
-  const [blockedDates, setBlockedDates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  const [showBlockForm, setShowBlockForm] = useState(false);
   const [editingAvailability, setEditingAvailability] = useState(null);
-  const [editingBlock, setEditingBlock] = useState(null);
-  const [viewMode, setViewMode] = useState('availability'); // 'availability' or 'blocked'
 
   const {
     register,
@@ -24,7 +29,6 @@ const AdminAvailability = () => {
     formState: { errors }
   } = useForm();
 
-  const watchIsRecurring = watch('isRecurring', false);
   const watchAllDay = watch('allDay', true);
   const watchAvailabilityType = watch('availabilityType', 'specific');
 
@@ -35,12 +39,22 @@ const AdminAvailability = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [availabilityRes, blockedRes] = await Promise.all([
-        availabilityAPI.getAvailability(),
-        availabilityAPI.getBlockedDates()
-      ]);
+      console.log('=== FRONTEND: Fetching availability data ===');
+      const availabilityRes = await availabilityAPI.getAvailability();
+      console.log('Backend response:', availabilityRes);
+      console.log('Availability data received:', availabilityRes.data.availability);
+      
+      if (availabilityRes.data.availability && availabilityRes.data.availability.length > 0) {
+        console.log('Sample availability item:', availabilityRes.data.availability[0]);
+        if (availabilityRes.data.availability[0].date) {
+          console.log('Sample date from backend:', availabilityRes.data.availability[0].date);
+          console.log('Sample date as Date object:', new Date(availabilityRes.data.availability[0].date));
+          console.log('Sample date ISO:', new Date(availabilityRes.data.availability[0].date).toISOString());
+        }
+      }
+      
       setAvailability(availabilityRes.data.availability || []);
-      setBlockedDates(blockedRes.data.blockedDates || []);
+      console.log('=== END FRONTEND FETCH ===');
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load availability data');
@@ -50,53 +64,56 @@ const AdminAvailability = () => {
   };
 
   const handleDateClick = (date) => {
+    console.log('=== FRONTEND: Date clicked ===');
+    console.log('Clicked date object:', date);
+    console.log('Clicked date ISO:', date.toISOString());
+    console.log('Clicked date string:', date.toDateString());
+    console.log('Current month:', currentMonth.getMonth());
+    console.log('Clicked date month:', date.getMonth());
+    
     // Only allow clicking on current month dates
     const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
     if (!isCurrentMonth) {
+      console.log('Date not in current month, ignoring click');
       return;
     }
 
-    if (viewMode === 'availability') {
-      // Check if this specific date already has availability set
-      const dateString = date.toISOString().split('T')[0];
-      const existingAvailability = availability.find(avail => 
-        avail.date && new Date(avail.date).toISOString().split('T')[0] === dateString
-      );
-      
-      if (existingAvailability) {
-        // Edit existing availability
-        setEditingAvailability(existingAvailability);
-        setValue('date', existingAvailability.date ? new Date(existingAvailability.date).toISOString().split('T')[0] : '');
-        setValue('availabilityType', existingAvailability.isRecurring ? 'recurring' : 'specific');
-        setValue('recurringDayOfWeek', existingAvailability.dayOfWeek ? existingAvailability.dayOfWeek.toString() : '');
-        setValue('startTime', existingAvailability.startTime || '09:00');
-        setValue('endTime', existingAvailability.endTime || '17:00');
-        setValue('allDay', existingAvailability.allDay);
-        setValue('notes', existingAvailability.notes || '');
-      } else {
-        // Create new availability for this specific date
-        setEditingAvailability(null);
-        setValue('date', dateString);
-        setValue('availabilityType', 'specific');
-        setValue('startTime', '09:00');
-        setValue('endTime', '17:00');
-        setValue('allDay', false);
-        setValue('notes', '');
-      }
-      setShowAvailabilityModal(true);
-    } else {
-      // Toggle blocked date
-      const dateString = date.toISOString().split('T')[0];
-      const existingBlock = blockedDates.find(block => 
-        !block.isRecurring && new Date(block.date).toISOString().split('T')[0] === dateString
-      );
-      
-      if (existingBlock) {
-        handleDeleteBlock(existingBlock._id);
-      } else {
-        handleCreateBlockedDate(date);
-      }
+    // Check if this specific date already has availability set
+    const dateString = getLocalDateString(date);
+    console.log('Formatted date string:', dateString);
+    
+    const existingAvailability = availability.find(avail => 
+      avail.date && getLocalDateString(new Date(avail.date)) === dateString
+    );
+    
+    console.log('Existing availability found:', !!existingAvailability);
+    if (existingAvailability) {
+      console.log('Existing availability:', existingAvailability);
     }
+    console.log('=== END FRONTEND DATE CLICK ===');
+    
+    if (existingAvailability) {
+      // Edit existing availability
+      setEditingAvailability(existingAvailability);
+      setValue('date', existingAvailability.date ? 
+        getLocalDateString(new Date(existingAvailability.date)) : '');
+      setValue('availabilityType', existingAvailability.isRecurring ? 'recurring' : 'specific');
+      setValue('recurringDayOfWeek', existingAvailability.dayOfWeek ? existingAvailability.dayOfWeek.toString() : '');
+      setValue('startTime', existingAvailability.startTime || '09:00');
+      setValue('endTime', existingAvailability.endTime || '17:00');
+      setValue('allDay', existingAvailability.allDay);
+      setValue('notes', existingAvailability.notes || '');
+    } else {
+      // Create new availability for this specific date
+      setEditingAvailability(null);
+      setValue('date', getLocalDateString(date));
+      setValue('availabilityType', 'specific');
+      setValue('startTime', '09:00');
+      setValue('endTime', '17:00');
+      setValue('allDay', false);
+      setValue('notes', '');
+    }
+    setShowAvailabilityModal(true);
   };
 
   const onSubmitAvailability = async (data) => {
@@ -111,6 +128,21 @@ const AdminAvailability = () => {
         notes: data.notes,
         isRecurring: data.availabilityType === 'recurring'
       };
+
+      console.log('=== FRONTEND: Sending availability data to backend ===');
+      console.log('Raw form data:', data);
+      console.log('Processed availability data:', availabilityData);
+      console.log('Date value type:', typeof availabilityData.date);
+      console.log('Date value:', availabilityData.date);
+      if (availabilityData.date) {
+        console.log('Date as Date object:', new Date(availabilityData.date));
+        console.log('Date as Date object ISO:', new Date(availabilityData.date).toISOString());
+      }
+      console.log('Editing existing availability:', !!editingAvailability);
+      if (editingAvailability) {
+        console.log('Existing availability ID:', editingAvailability._id);
+      }
+      console.log('=== END FRONTEND DATA ===');
 
       if (editingAvailability) {
         await availabilityAPI.updateAvailability(editingAvailability._id, availabilityData);
@@ -145,53 +177,6 @@ const AdminAvailability = () => {
     }
   };
 
-  const handleCreateBlockedDate = (date) => {
-    setEditingBlock({
-      date: date.toISOString().split('T')[0],
-      allDay: true,
-      reason: 'Unavailable',
-      isRecurring: false
-    });
-    setShowBlockForm(true);
-  };
-
-  const handleDeleteBlock = async (id) => {
-    try {
-      await availabilityAPI.deleteBlockedDate(id);
-      toast.success('Date unblocked successfully!');
-      fetchData();
-    } catch (error) {
-      console.error('Error deleting blocked date:', error);
-      toast.error('Failed to unblock date');
-    }
-  };
-
-  const onSubmitBlock = async (data) => {
-    try {
-      const blockData = {
-        ...data,
-        date: data.isRecurring ? null : data.date,
-        allDay: data.allDay === 'true' || data.allDay === true,
-        isRecurring: data.isRecurring === 'true' || data.isRecurring === true
-      };
-
-      if (editingBlock._id) {
-        await availabilityAPI.updateBlockedDate(editingBlock._id, blockData);
-        toast.success('Blocked date updated successfully!');
-      } else {
-        await availabilityAPI.createBlockedDate(blockData);
-        toast.success('Date blocked successfully!');
-      }
-      reset();
-      setEditingBlock(null);
-      setShowBlockForm(false);
-      fetchData();
-    } catch (error) {
-      console.error('Error saving blocked date:', error);
-      toast.error('Failed to save blocked date');
-    }
-  };
-
   const getCalendarDays = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -202,27 +187,29 @@ const AdminAvailability = () => {
     const days = [];
     const today = new Date();
     
-    // Generate 6 weeks of days (42 days total)
     for (let i = 0; i < 42; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + i);
       
       const isCurrentMonth = date.getMonth() === month;
-      const isToday = date.toDateString() === today.toDateString();
+      const isToday = date.toDateString() === new Date().toDateString();
       const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
       
-      // Check if this date has availability set
-      const dateString = date.toISOString().split('T')[0];
-      const hasAvailability = availability.some(avail => 
-        avail.date && new Date(avail.date).toISOString().split('T')[0] === dateString
-      );
+      // FIX: Convert database UTC dates to local dates for comparison
+      const hasAvailability = availability.some(avail => {
+        if (!avail.date) return false;
+        
+        // Convert UTC date from database to local date string
+        const dbDate = new Date(avail.date);
+        const localDbDate = new Date(dbDate.getTime() + (dbDate.getTimezoneOffset() * 60000));
+        const localDbDateString = localDbDate.toISOString().split('T')[0];
+        
+        // Convert calendar date to local date string
+        const calendarDateString = date.toISOString().split('T')[0];
+        
+        return localDbDateString === calendarDateString;
+      });
       
-      // Check if this date is blocked
-      const isBlocked = blockedDates.some(block => 
-        !block.isRecurring && new Date(block.date).toISOString().split('T')[0] === dateString
-      );
-      
-      // Check if this date has recurring availability
       const hasRecurringAvailability = availability.some(avail => 
         avail.isRecurring && avail.dayOfWeek === date.getDay()
       );
@@ -233,7 +220,6 @@ const AdminAvailability = () => {
         isToday,
         isPast,
         hasAvailability,
-        isBlocked,
         hasRecurringAvailability
       });
     }
@@ -242,12 +228,18 @@ const AdminAvailability = () => {
   };
 
   const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    // Use the same local date conversion as in getCalendarDays
+    const localDateString = date.toISOString().split('T')[0];
+    const [year, month, day] = localDateString.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day);
+    
+    return `${days[localDate.getDay()]}, ${months[localDate.getMonth()]} ${localDate.getDate()}, ${localDate.getFullYear()}`;
   };
 
   const nextMonth = () => {
@@ -430,190 +422,13 @@ const AdminAvailability = () => {
     </div>
   );
 
-  const BlockForm = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">
-            {editingBlock?._id ? 'Edit Blocked Date' : 'Block Date'}
-          </h2>
-          <button
-            onClick={() => {
-              setShowBlockForm(false);
-              setEditingBlock(null);
-              reset();
-            }}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmitBlock)} className="space-y-4">
-          <div>
-            <label className="form-label">Type</label>
-            <select
-              {...register('isRecurring')}
-              className="form-input"
-            >
-              <option value="false">Specific Date</option>
-              <option value="true">Recurring (Weekly)</option>
-            </select>
-          </div>
-
-          {!watchIsRecurring && (
-            <div>
-              <label className="form-label">Date</label>
-              <input
-                type="date"
-                {...register('date', { required: !watchIsRecurring ? 'Date is required' : false })}
-                className="form-input"
-                defaultValue={editingBlock?.date}
-              />
-              {errors.date && (
-                <p className="text-red-500 text-sm mt-1">{errors.date.message}</p>
-              )}
-            </div>
-          )}
-
-          {watchIsRecurring && (
-            <div>
-              <label className="form-label">Day of Week</label>
-              <select
-                {...register('recurringDayOfWeek', { required: watchIsRecurring ? 'Day is required' : false })}
-                className="form-input"
-              >
-                <option value="">Select Day</option>
-                <option value="0">Sunday</option>
-                <option value="1">Monday</option>
-                <option value="2">Tuesday</option>
-                <option value="3">Wednesday</option>
-                <option value="4">Thursday</option>
-                <option value="5">Friday</option>
-                <option value="6">Saturday</option>
-              </select>
-              {errors.recurringDayOfWeek && (
-                <p className="text-red-500 text-sm mt-1">{errors.recurringDayOfWeek.message}</p>
-              )}
-            </div>
-          )}
-
-          <div>
-            <label className="form-label">Duration</label>
-            <select
-              {...register('allDay')}
-              className="form-input"
-            >
-              <option value="true">All Day</option>
-              <option value="false">Specific Time</option>
-            </select>
-          </div>
-
-          {!watchAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">Start Time</label>
-                <input
-                  type="time"
-                  {...register('startTime', { required: !watchAllDay ? 'Start time is required' : false })}
-                  className="form-input"
-                />
-                {errors.startTime && (
-                  <p className="text-red-500 text-sm mt-1">{errors.startTime.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="form-label">End Time</label>
-                <input
-                  type="time"
-                  {...register('endTime', { required: !watchAllDay ? 'End time is required' : false })}
-                  className="form-input"
-                />
-                {errors.endTime && (
-                  <p className="text-red-500 text-sm mt-1">{errors.endTime.message}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="form-label">Reason</label>
-            <input
-              type="text"
-              {...register('reason', { required: 'Reason is required' })}
-              className="form-input"
-              placeholder="e.g., Vacation, Holiday, Personal"
-              defaultValue={editingBlock?.reason}
-            />
-            {errors.reason && (
-              <p className="text-red-500 text-sm mt-1">{errors.reason.message}</p>
-            )}
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => {
-                setShowBlockForm(false);
-                setEditingBlock(null);
-                reset();
-              }}
-              className="btn-secondary"
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary">
-              {editingBlock?._id ? 'Update' : 'Block'} Date
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Interactive Calendar</h1>
-            <p className="text-gray-600 mt-2">Click days to set availability or block dates</p>
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setShowBlockForm(true)}
-              className="btn-primary"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Block
-            </button>
-          </div>
-        </div>
-
-        {/* Mode Toggle */}
-        <div className="mb-6">
-          <div className="flex bg-gray-200 rounded-lg p-1 max-w-md mx-auto">
-            <button
-              onClick={() => setViewMode('availability')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'availability'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Set Availability
-            </button>
-            <button
-              onClick={() => setViewMode('blocked')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'blocked'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Block Dates
-            </button>
+            <p className="text-gray-600 mt-2">Click days to set availability</p>
           </div>
         </div>
 
@@ -669,9 +484,7 @@ const AdminAvailability = () => {
                           ${day.isPast && day.isCurrentMonth ? 'text-gray-400' : ''}
                           ${day.hasAvailability ? 'bg-green-100 border-green-300' : ''}
                           ${day.hasRecurringAvailability ? 'bg-blue-100 border-blue-300' : ''}
-                          ${day.isBlocked ? 'bg-red-100 border-red-300' : ''}
-                          ${viewMode === 'availability' && day.isCurrentMonth && !day.isPast ? 'hover:bg-blue-50' : ''}
-                          ${viewMode === 'blocked' && day.isCurrentMonth && !day.isPast ? 'hover:bg-red-50' : ''}
+                          ${day.isCurrentMonth && !day.isPast ? 'hover:bg-blue-50' : ''}
                         `}
                       >
                         <div className="text-sm font-medium">
@@ -682,9 +495,6 @@ const AdminAvailability = () => {
                         )}
                         {day.hasRecurringAvailability && !day.hasAvailability && (
                           <div className="text-xs text-blue-600 mt-1">Recurring</div>
-                        )}
-                        {day.isBlocked && (
-                          <div className="text-xs text-red-600 mt-1">Blocked</div>
                         )}
                       </div>
                     ))}
@@ -699,8 +509,8 @@ const AdminAvailability = () => {
                       <span>Available</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 bg-red-100 border-2 border-red-300 rounded"></div>
-                      <span>Blocked</span>
+                      <div className="w-4 h-4 bg-blue-100 border-2 border-blue-300 rounded"></div>
+                      <span>Recurring</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="w-4 h-4 bg-gray-100 border-2 border-gray-300 rounded"></div>
@@ -715,97 +525,60 @@ const AdminAvailability = () => {
             <div className="lg:col-span-1">
               <div className="card">
                 <div className="card-header">
-                  <h2 className="text-xl font-semibold">
-                    {viewMode === 'availability' ? 'Availability Settings' : 'Blocked Dates'}
-                  </h2>
-                  <p className="text-gray-600">
-                    {viewMode === 'availability' 
-                      ? 'Dates with custom availability' 
-                      : 'Dates when you\'re unavailable'
-                    }
-                  </p>
+                  <h2 className="text-xl font-semibold">Availability Settings</h2>
+                  <p className="text-gray-600">Dates with custom availability</p>
                 </div>
                 
                 <div className="space-y-4">
-                  {viewMode === 'availability' ? (
-                    availability.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">No availability set</p>
-                        <p className="text-sm text-gray-400 mt-2">Click on days in the calendar to set availability</p>
-                      </div>
-                    ) : (
-                      availability.map((avail) => (
-                        <div key={avail._id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                          <div>
-                            <h3 className="font-semibold text-green-900">
-                              {avail.isRecurring 
-                                ? `Every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][avail.dayOfWeek]}`
-                                : formatDate(new Date(avail.date))
-                              }
-                            </h3>
-                            <p className="text-sm text-green-700">
-                              {avail.allDay ? 'All Day' : `${avail.startTime} - ${avail.endTime}`}
-                            </p>
-                            {avail.notes && (
-                              <p className="text-xs text-green-600 mt-1">{avail.notes}</p>
-                            )}
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => {
-                                setEditingAvailability(avail);
-                                setValue('date', avail.date ? new Date(avail.date).toISOString().split('T')[0] : '');
-                                setValue('availabilityType', avail.isRecurring ? 'recurring' : 'specific');
-                                setValue('recurringDayOfWeek', avail.dayOfWeek || '');
-                                setValue('startTime', avail.startTime || '09:00');
-                                setValue('endTime', avail.endTime || '17:00');
-                                setValue('allDay', avail.allDay ? 'true' : 'false');
-                                setValue('notes', avail.notes || '');
-                                setShowAvailabilityModal(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAvailability(avail._id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )
+                  {availability.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No availability set</p>
+                      <p className="text-sm text-gray-400 mt-2">Click on days in the calendar to set availability</p>
+                    </div>
                   ) : (
-                    blockedDates.length === 0 ? (
-                      <div className="text-center py-8">
-                        <X className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">No blocked dates</p>
-                        <p className="text-sm text-gray-400 mt-2">Click on days in the calendar to block them</p>
-                      </div>
-                    ) : (
-                      blockedDates.map((block) => (
-                        <div key={block._id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                          <div>
-                            <h3 className="font-semibold text-red-900">{block.reason}</h3>
-                            <p className="text-sm text-red-700">
-                              {block.isRecurring 
-                                ? `Every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][block.recurringDayOfWeek]}`
-                                : new Date(block.date).toLocaleDateString()
-                              }
-                            </p>
-                          </div>
+                    availability.map((avail) => (
+                      <div key={avail._id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                        <div>
+                          <h3 className="font-semibold text-green-900">
+                            {avail.isRecurring 
+                              ? `Every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][avail.dayOfWeek]}`
+                              : formatDate(new Date(avail.date))
+                            }
+                          </h3>
+                          <p className="text-sm text-green-700">
+                            {avail.allDay ? 'All Day' : `${avail.startTime} - ${avail.endTime}`}
+                          </p>
+                          {avail.notes && (
+                            <p className="text-xs text-green-600 mt-1">{avail.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex space-x-2">
                           <button
-                            onClick={() => handleDeleteBlock(block._id)}
+                            onClick={() => {
+                              setEditingAvailability(avail);
+                              setValue('date', avail.date ? getLocalDateString(new Date(avail.date)) : '');
+                              setValue('availabilityType', avail.isRecurring ? 'recurring' : 'specific');
+                              setValue('recurringDayOfWeek', avail.dayOfWeek || '');
+                              setValue('startTime', avail.startTime || '09:00');
+                              setValue('endTime', avail.endTime || '17:00');
+                              setValue('allDay', avail.allDay ? 'true' : 'false');
+                              setValue('notes', avail.notes || '');
+                              setShowAvailabilityModal(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAvailability(avail._id)}
                             className="text-red-600 hover:text-red-800"
                           >
                             <X className="h-4 w-4" />
                           </button>
                         </div>
-                      ))
-                    )
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -815,7 +588,6 @@ const AdminAvailability = () => {
 
         {/* Modals */}
         {showAvailabilityModal && <AvailabilityModal />}
-        {showBlockForm && <BlockForm />}
       </div>
     </div>
   );

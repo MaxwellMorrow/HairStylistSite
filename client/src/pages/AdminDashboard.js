@@ -24,7 +24,7 @@ const AdminDashboard = () => {
     }
   };
 
-  if (!user || !user.isAdmin) {
+  if (!user || user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-gray-50 py-12">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -110,6 +110,18 @@ const AdminDashboard = () => {
               </h3>
               <p className="text-gray-600">
                 Set working hours and block unavailable dates
+              </p>
+            </div>
+          </Link>
+          
+          <Link to="/admin/chatbot" className="card hover:shadow-md transition-shadow duration-200 cursor-pointer">
+            <div className="text-center py-8">
+              <div className="text-4xl text-gray-300 mb-4">🤖</div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                AI ChatBot Demo
+              </h3>
+              <p className="text-gray-600">
+                Test and demonstrate the AI booking assistant
               </p>
             </div>
           </Link>

@@ -87,6 +87,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/hairstyli
   const adminRoutes = require('./routes/admin');
   const serviceRoutes = require('./routes/services');
   const availabilityRoutes = require('./routes/availability');
+
   
   // Routes
   app.use('/api/auth', authRoutes);
@@ -95,6 +96,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/hairstyli
   app.use('/api/admin', adminRoutes);
   app.use('/api/services', serviceRoutes);
   app.use('/api/availability', availabilityRoutes);
+
   
   // Error handling middleware
   app.use((err, req, res, next) => {

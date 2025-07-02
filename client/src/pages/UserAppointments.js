@@ -132,7 +132,18 @@ const UserAppointments = () => {
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    // Handle the date string properly to avoid timezone issues
+    // If date is a string like "2025-07-01T00:00:00.000+00:00", extract just the date part
+    let dateToFormat = date;
+    
+    if (typeof date === 'string' && date.includes('T')) {
+      // Extract just the date part (YYYY-MM-DD) before the 'T'
+      const datePart = date.split('T')[0];
+      // Create a new date object using the date part only (no timezone conversion)
+      dateToFormat = new Date(datePart + 'T00:00:00');
+    }
+    
+    return dateToFormat.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',

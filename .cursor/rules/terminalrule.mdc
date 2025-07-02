@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Let the user run all terminal commands restarting client and server. Cursor can use the context of the added terminals to debug.

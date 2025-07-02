@@ -62,12 +62,20 @@ const Navbar = () => {
                   My Appointments
                 </Link>
                 {isAdmin && (
-                  <Link
-                    to="/admin"
-                    className="text-sm text-gray-700 hover:text-primary-600"
-                  >
-                    Admin
-                  </Link>
+                  <div className="flex items-center space-x-4">
+                    <Link
+                      to="/admin"
+                      className="text-sm text-gray-700 hover:text-primary-600"
+                    >
+                      Admin
+                    </Link>
+                    <Link
+                      to="/admin/chatbot"
+                      className="text-sm text-gray-700 hover:text-primary-600"
+                    >
+                      AI Demo
+                    </Link>
+                  </div>
                 )}
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-gray-500" />
@@ -145,13 +153,22 @@ const Navbar = () => {
                     My Appointments
                   </Link>
                   {isAdmin && (
-                    <Link
-                      to="/admin"
-                      className="block px-3 py-2 text-base text-gray-700 hover:text-primary-600"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Admin Dashboard
-                    </Link>
+                    <>
+                      <Link
+                        to="/admin"
+                        className="block px-3 py-2 text-base text-gray-700 hover:text-primary-600"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        Admin Dashboard
+                      </Link>
+                      <Link
+                        to="/admin/chatbot"
+                        className="block px-3 py-2 text-base text-gray-700 hover:text-primary-600"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        AI Demo
+                      </Link>
+                    </>
                   )}
                   <div className="px-3 py-2 text-sm text-gray-500">
                     Welcome, {user?.name}

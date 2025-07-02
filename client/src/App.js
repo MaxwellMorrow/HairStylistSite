@@ -15,6 +15,8 @@ import AdminServices from './pages/AdminServices';
 import AdminGallery from './pages/AdminGallery';
 import AdminAvailability from './pages/AdminAvailability';
 import AdminAppointments from './pages/AdminAppointments';
+import AdminChatBot from './pages/AdminChatBot';
+import ChatBotTest from './pages/ChatBotTest';
 import { AuthProvider } from './contexts/AuthContext';
 
 // 404 Page Component
@@ -95,6 +97,15 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/admin/chatbot" 
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminChatBot />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="/chatbot-test" element={<ChatBotTest />} />
             {/* Catch-all route for 404 errors */}
             <Route path="*" element={<NotFound />} />
           </Routes>

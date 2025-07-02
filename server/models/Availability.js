@@ -105,12 +105,29 @@ availabilitySchema.methods.appliesToDate = function(checkDate) {
   
   if (this.isRecurring) {
     // Check if it's the same day of week
-    return checkDate.getDay() === this.dayOfWeek;
+    return checkDate.getUTCDay() === this.dayOfWeek;
   } else {
-    // Check if it's the same specific date
+    // Check if it's the same specific date (UTC)
     const availabilityDate = new Date(this.date);
-    const checkDateOnly = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
-    const availabilityDateOnly = new Date(availabilityDate.getFullYear(), availabilityDate.getMonth(), availabilityDate.getDate());
+    const checkDateOnly = new Date(Date.UTC(
+      checkDate.getUTCFullYear(),
+      checkDate.getUTCMonth(),
+      checkDate.getUTCDate()
+    ));
+    const availabilityDateOnly = new Date(Date.UTC(
+      availabilityDate.getUTCFullYear(),
+      availabilityDate.getUTCMonth(),
+      availabilityDate.getUTCDate()
+    ));
+    
+    console.log(`  appliesToDate check:`, {
+      availabilityId: this._id,
+      availabilityDate: this.date ? this.date.toISOString() : 'null',
+      checkDate: checkDate.toISOString(),
+      availabilityDateOnly: availabilityDateOnly.toISOString(),
+      checkDateOnly: checkDateOnly.toISOString(),
+      matches: checkDateOnly.getTime() === availabilityDateOnly.getTime()
+    });
     
     return checkDateOnly.getTime() === availabilityDateOnly.getTime();
   }

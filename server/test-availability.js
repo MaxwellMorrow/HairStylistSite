@@ -4,53 +4,106 @@ require('dotenv').config();
 // Import models
 const Availability = require('./models/Availability');
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
-
-async function createTestAvailability() {
+async function testAvailability() {
   try {
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth(); // 0-11
-    
-    // Create availability for the next few days of the current month
-    const availabilities = [];
-    
-    for (let day = currentDate.getDate(); day <= Math.min(currentDate.getDate() + 7, new Date(currentYear, currentMonth + 1, 0).getDate()); day++) {
-      const availability = new Availability({
-        date: new Date(currentYear, currentMonth, day),
-        isRecurring: false,
-        startTime: '09:00',
-        endTime: '17:00',
-        allDay: false,
-        slotDuration: 30,
-        isActive: true,
-        notes: `Test availability for ${day}/${currentMonth + 1}/${currentYear}`
-      });
+    console.log('Connecting to MongoDB...');
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('Connected to MongoDB');
+
+    // Get all availability settings
+    const availability = await Availability.find({});
+    console.log('\n=== Current Availability Settings ===');
+    console.log(JSON.stringify(availability, null, 2));
+
+    if (availability.length === 0) {
+      console.log('\nNo availability settings found. Creating some test data...');
       
-      availabilities.push(availability);
+      // Create some test availability
+      const testAvailability = [
+        {
+          dayOfWeek: 1, // Monday
+          isRecurring: true,
+          startTime: '09:00',
+          endTime: '17:00',
+          allDay: false,
+          slotDuration: 30,
+          isActive: true,
+          notes: 'Monday availability'
+        },
+        {
+          dayOfWeek: 2, // Tuesday
+          isRecurring: true,
+          startTime: '09:00',
+          endTime: '17:00',
+          allDay: false,
+          slotDuration: 30,
+          isActive: true,
+          notes: 'Tuesday availability'
+        },
+        {
+          dayOfWeek: 3, // Wednesday
+          isRecurring: true,
+          startTime: '09:00',
+          endTime: '17:00',
+          allDay: false,
+          slotDuration: 30,
+          isActive: true,
+          notes: 'Wednesday availability'
+        },
+        {
+          dayOfWeek: 4, // Thursday
+          isRecurring: true,
+          startTime: '09:00',
+          endTime: '17:00',
+          allDay: false,
+          slotDuration: 30,
+          isActive: true,
+          notes: 'Thursday availability'
+        },
+        {
+          dayOfWeek: 5, // Friday
+          isRecurring: true,
+          startTime: '09:00',
+          endTime: '17:00',
+          allDay: false,
+          slotDuration: 30,
+          isActive: true,
+          notes: 'Friday availability'
+        }
+      ];
+
+      for (const avail of testAvailability) {
+        const newAvail = new Availability(avail);
+        await newAvail.save();
+        console.log(`Created availability for ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][avail.dayOfWeek]}`);
+      }
     }
+
+    // Test the appliesToDate method
+    console.log('\n=== Testing appliesToDate Method ===');
+    const testDate = new Date();
+    console.log(`Testing date: ${testDate.toISOString().split('T')[0]} (day ${testDate.getDay()})`);
     
-    // Save all availabilities
-    await Availability.insertMany(availabilities);
-    
-    console.log(`Created ${availabilities.length} test availabilities`);
-    console.log('Test availabilities created successfully!');
-    
-    // List the created availabilities
-    const created = await Availability.find({ notes: { $regex: /Test availability/ } }).sort({ date: 1 });
-    console.log('\nCreated availabilities:');
-    created.forEach(avail => {
-      console.log(`- ${avail.date.toDateString()}: ${avail.startTime} - ${avail.endTime}`);
-    });
-    
+    for (const avail of availability) {
+      const applies = avail.appliesToDate(testDate);
+      console.log(`${avail.isRecurring ? 'Recurring' : 'Specific'} availability: ${applies ? 'YES' : 'NO'}`);
+    }
+
+    // Test for next 7 days
+    console.log('\n=== Testing Next 7 Days ===');
+    for (let i = 0; i < 7; i++) {
+      const testDate = new Date();
+      testDate.setDate(testDate.getDate() + i);
+      const applicable = availability.filter(avail => avail.appliesToDate(testDate));
+      console.log(`${testDate.toISOString().split('T')[0]} (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][testDate.getDay()]}): ${applicable.length} availability settings`);
+    }
+
   } catch (error) {
-    console.error('Error creating test availability:', error);
+    console.error('Error:', error);
   } finally {
-    mongoose.connection.close();
+    await mongoose.disconnect();
+    console.log('\nDisconnected from MongoDB');
   }
 }
 
-createTestAvailability(); 
+testAvailability(); 

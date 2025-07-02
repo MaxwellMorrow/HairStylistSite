@@ -3,6 +3,8 @@ const twilio = require('twilio');
 const cron = require('node-cron');
 const { Appointment, User } = require('../models');
 const moment = require('moment');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 class NotificationService {
   constructor() {
@@ -14,7 +16,7 @@ class NotificationService {
   initializeServices() {
     // Initialize email service
     if (process.env.EMAIL_SERVICE && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      this.emailTransporter = nodemailer.createTransporter({
+      this.emailTransporter = nodemailer.createTransport({
         service: process.env.EMAIL_SERVICE, // 'gmail', 'outlook', etc.
         auth: {
           user: process.env.EMAIL_USER,
@@ -44,7 +46,7 @@ class NotificationService {
   }
 
   // Email notification methods
-  async sendEmail(to, subject, htmlContent, textContent = '') {
+  async sendEmail(to, subject, htmlContent, textContent = '', logLabel = '') {
     if (!this.emailTransporter) {
       console.log('Email service not configured');
       return false;
@@ -60,10 +62,10 @@ class NotificationService {
       };
 
       const result = await this.emailTransporter.sendMail(mailOptions);
-      console.log('Email sent successfully:', result.messageId);
+      console.log(`[EMAIL SENT] Type: ${logLabel} | To: ${to} | Subject: ${subject} | MessageID: ${result.messageId}`);
       return true;
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error(`[EMAIL ERROR] Type: ${logLabel} | To: ${to} | Subject: ${subject} | Error:`, error);
       return false;
     }
   }
@@ -98,16 +100,24 @@ class NotificationService {
   // Appointment booking notifications
   async notifyNewAppointment(appointment) {
     const client = await User.findById(appointment.client);
-    const service = await appointment.populate('service');
-    
-    // Notify admin/stylist
-    await this.notifyAdminNewAppointment(appointment, client, service);
+    await appointment.populate('service');
+    const service = appointment.service;
+
+    // Generate a secure random token for admin confirmation
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await bcrypt.hash(rawToken, 10);
+    appointment.confirmationToken = hashedToken;
+    appointment.confirmationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
+    await appointment.save();
+
+    // Notify admin/stylist (pass rawToken for email link)
+    await this.notifyAdminNewAppointment(appointment, client, service, rawToken);
     
     // Notify client
     await this.notifyClientAppointmentConfirmation(appointment, client, service);
   }
 
-  async notifyAdminNewAppointment(appointment, client, service) {
+  async notifyAdminNewAppointment(appointment, client, service, rawToken) {
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPhone = process.env.ADMIN_PHONE;
 
@@ -116,9 +126,11 @@ class NotificationService {
 
     // Email notification
     if (adminEmail) {
-      const emailSubject = `New Appointment Booking - ${client.name}`;
+      const emailSubject = `New Appointment Request - ${client.name}`;
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      const confirmLink = `${baseUrl}/api/appointments/confirm/${appointment._id}?token=${rawToken}`;
       const emailHtml = `
-        <h2>New Appointment Booking</h2>
+        <h2>New Appointment Request</h2>
         <p><strong>Client:</strong> ${client.name}</p>
         <p><strong>Email:</strong> ${client.email}</p>
         <p><strong>Phone:</strong> ${client.phone || 'Not provided'}</p>
@@ -130,9 +142,13 @@ class NotificationService {
         ${appointment.clientNotes ? `<p><strong>Client Notes:</strong> ${appointment.clientNotes}</p>` : ''}
         ${appointment.inspoPhotos && appointment.inspoPhotos.length > 0 ? 
           `<p><strong>Inspiration Photos:</strong> ${appointment.inspoPhotos.length} uploaded</p>` : ''}
+        <div style="margin: 30px 0;">
+          <a href="${confirmLink}" style="display:inline-block;padding:12px 24px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;font-size:16px;">Confirm Appointment</a>
+        </div>
+        <p>Click the button above to confirm this appointment. The client will be notified upon confirmation.</p>
       `;
 
-      await this.sendEmail(adminEmail, emailSubject, emailHtml);
+      await this.sendEmail(adminEmail, emailSubject, emailHtml, '', 'Admin Request');
     }
 
     // SMS notification (optional)
@@ -146,12 +162,12 @@ class NotificationService {
     const appointmentDate = moment(appointment.date).format('dddd, MMMM Do YYYY');
     const appointmentTime = moment(appointment.startTime, 'HH:mm').format('h:mm A');
 
-    // Email confirmation
-    const emailSubject = `Appointment Confirmation - ${service.name}`;
+    // Email notification (not a confirmation yet)
+    const emailSubject = `Appointment Request Received - ${service.name}`;
     const emailHtml = `
-      <h2>Appointment Confirmation</h2>
+      <h2>Appointment Request Received</h2>
       <p>Hi ${client.name},</p>
-      <p>Your appointment has been successfully booked!</p>
+      <p>Your appointment request has been received. A stylist will review and confirm your appointment as soon as possible. You will receive a confirmation email once your appointment is confirmed.</p>
       <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3>Appointment Details</h3>
         <p><strong>Service:</strong> ${service.name}</p>
@@ -161,17 +177,39 @@ class NotificationService {
         <p><strong>Total Cost:</strong> $${appointment.totalCost}</p>
         ${appointment.clientNotes ? `<p><strong>Your Notes:</strong> ${appointment.clientNotes}</p>` : ''}
       </div>
-      <p>We look forward to seeing you!</p>
       <p>If you need to make any changes, please contact us as soon as possible.</p>
     `;
 
-    await this.sendEmail(client.email, emailSubject, emailHtml);
+    await this.sendEmail(client.email, emailSubject, emailHtml, '', 'Client Confirmation');
 
     // SMS confirmation (optional)
     if (client.phone) {
       const smsMessage = `Appointment confirmed: ${service.name} on ${appointmentDate} at ${appointmentTime}. See you soon!`;
       await this.sendSMS(client.phone, smsMessage);
     }
+  }
+
+  async notifyClientAppointmentFinalConfirmation(appointment, client, service) {
+    const appointmentDate = moment(appointment.date).format('dddd, MMMM Do YYYY');
+    const appointmentTime = moment(appointment.startTime, 'HH:mm').format('h:mm A');
+    const emailSubject = `Appointment Confirmed - ${service.name}`;
+    const emailHtml = `
+      <h2>Your Appointment is Confirmed!</h2>
+      <p>Hi ${client.name},</p>
+      <p>Your appointment has been confirmed. We look forward to seeing you!</p>
+      <div style="background-color: #e6ffe6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3>Appointment Details</h3>
+        <p><strong>Service:</strong> ${service.name}</p>
+        <p><strong>Date:</strong> ${appointmentDate}</p>
+        <p><strong>Time:</strong> ${appointmentTime}</p>
+        <p><strong>Duration:</strong> ${service.duration} minutes</p>
+        <p><strong>Total Cost:</strong> $${appointment.totalCost}</p>
+        ${appointment.clientNotes ? `<p><strong>Your Notes:</strong> ${appointment.clientNotes}</p>` : ''}
+      </div>
+      <p>If you need to make any changes, please contact us as soon as possible.</p>
+    `;
+    await this.sendEmail(client.email, emailSubject, emailHtml, '', 'Client Final Confirmation');
+    // Optionally, send SMS here as well
   }
 
   // Appointment reminder notifications

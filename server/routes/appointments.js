@@ -30,4 +30,7 @@ router.put('/:id/photos', authenticateToken, appointmentsController.updatePhotos
 // Delete specific photo
 router.delete('/:id/photos/:photoIndex', authenticateToken, appointmentsController.deletePhoto);
 
+// Confirm appointment (for admin email link)
+router.get('/confirm/:id', appointmentsController.confirm);
+
 module.exports = router; 

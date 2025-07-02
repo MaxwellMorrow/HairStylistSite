@@ -80,7 +80,9 @@ const appointmentSchema = new mongoose.Schema({
       enum: ['client', 'admin'],
       required: true
     }
-  }]
+  }],
+  confirmationToken: String,
+  confirmationTokenExpires: Date,
 }, {
   timestamps: true
 });

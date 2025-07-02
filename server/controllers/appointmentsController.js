@@ -78,9 +78,11 @@ exports.book = async (req, res) => {
       
       await appointment.save();
       
+      // Fetch the appointment with client and service populated
+      const populatedAppointment = await Appointment.findById(appointment._id).populate('client service');
       // Send notifications
       try {
-        await notificationService.notifyNewAppointment(appointment);
+        await notificationService.notifyNewAppointment(populatedAppointment);
       } catch (notificationError) {
         console.error('Error sending notifications:', notificationError);
         // Don't fail the booking if notifications fail
@@ -162,7 +164,7 @@ exports.getById = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, clientNotes } = req.body;
     
     const appointment = await Appointment.findById(id);
     if (!appointment) {
@@ -171,6 +173,7 @@ exports.update = async (req, res) => {
     
     if (status) appointment.status = status;
     if (notes !== undefined) appointment.notes = notes;
+    if (clientNotes !== undefined) appointment.clientNotes = clientNotes;
     
     await appointment.save();
     
@@ -221,7 +224,7 @@ exports.updatePhotos = async (req, res) => {
       }
 
       // Check if user owns this appointment or is admin
-      if (appointment.client.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+      if (appointment.client.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Not authorized to modify this appointment.' });
       }
 
@@ -253,7 +256,7 @@ exports.deletePhoto = async (req, res) => {
     }
 
     // Check if user owns this appointment or is admin
-    if (appointment.client.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+    if (appointment.client.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized to modify this appointment.' });
     }
 
@@ -270,4 +273,70 @@ exports.deletePhoto = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete photo.', details: err.message });
   }
-}; 
+};
+
+// Confirm appointment (for admin email link)
+exports.confirm = async (req, res) => {
+  // TODO: Add authentication or secure token validation for production use
+  try {
+    const { id } = req.params;
+    const { token } = req.query;
+    const appointment = await Appointment.findById(id).populate('client service');
+    if (!appointment) {
+      return res.status(404).send(renderConfirmationPage('error', 'Appointment not found.'));
+    }
+    if (appointment.status === 'confirmed') {
+      return res.status(400).send(renderConfirmationPage('error', 'Appointment is already confirmed.'));
+    }
+    if (!appointment.confirmationToken || !appointment.confirmationTokenExpires) {
+      return res.status(400).send(renderConfirmationPage('error', 'No confirmation token set for this appointment.'));
+    }
+    if (appointment.confirmationTokenExpires < new Date()) {
+      return res.status(400).send(renderConfirmationPage('error', 'Confirmation token has expired.'));
+    }
+    if (!token) {
+      return res.status(400).send(renderConfirmationPage('error', 'Confirmation token is required.'));
+    }
+    const isMatch = await require('bcrypt').compare(token, appointment.confirmationToken);
+    if (!isMatch) {
+      return res.status(400).send(renderConfirmationPage('error', 'Invalid confirmation token.'));
+    }
+    appointment.status = 'confirmed';
+    appointment.confirmationToken = undefined;
+    appointment.confirmationTokenExpires = undefined;
+    await appointment.save();
+    // Send confirmation email to client
+    try {
+      await notificationService.notifyClientAppointmentFinalConfirmation(appointment, appointment.client, appointment.service);
+    } catch (notificationError) {
+      console.error('Error sending client confirmation:', notificationError);
+    }
+    return res.send(renderConfirmationPage('success', 'Appointment confirmed and client notified.'));
+  } catch (err) {
+    return res.status(500).send(renderConfirmationPage('error', 'Failed to confirm appointment. Please try again later.'));
+  }
+};
+
+function renderConfirmationPage(type, message) {
+  const isSuccess = type === 'success';
+  return `
+    <html>
+      <head>
+        <title>Appointment ${isSuccess ? 'Confirmed' : 'Error'}</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f8f9fa; text-align: center; padding: 40px; }
+          .card { background: #fff; border-radius: 8px; padding: 32px; display: inline-block; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}
+          .success { color: #4CAF50; font-size: 2em; margin-bottom: 16px; }
+          .error { color: #F44336; font-size: 2em; margin-bottom: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="${isSuccess ? 'success' : 'error'}">${isSuccess ? '✔️' : '❌'}</div>
+          <h2>Appointment ${isSuccess ? 'Confirmed!' : 'Error'}</h2>
+          <p>${message}</p>
+        </div>
+      </body>
+    </html>
+  `;
+} 

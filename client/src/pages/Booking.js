@@ -186,6 +186,16 @@ const Booking = () => {
         }
       }
 
+      console.log('=== APPOINTMENT BOOKING DEBUG ===');
+      console.log('User ID:', user._id);
+      console.log('Service ID:', selectedService._id);
+      console.log('Date:', selectedDate.toISOString().split('T')[0]);
+      console.log('Start Time:', selectedTime);
+      console.log('End Time:', endTime.toTimeString().slice(0, 5));
+      console.log('Client Notes:', data.clientNotes || '');
+      console.log('Inspo Photos Count:', inspoPhotos.length);
+      console.log('=== END DEBUG ===');
+
       await appointmentsAPI.createAppointment(formData);
       
       toast.success('Appointment booked successfully!');

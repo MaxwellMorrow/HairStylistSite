@@ -4,10 +4,6 @@ import toast from 'react-hot-toast';
 import { availabilityAPI } from '../services/api';
 import { Calendar, X, Edit, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
-// Helper function to format date as YYYY-MM-DD in UTC
-const getUTCDateString = (date) =>
-  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-
 // Add this helper function
 const getLocalDateString = (date) => {
   return date.toISOString().split('T')[0];

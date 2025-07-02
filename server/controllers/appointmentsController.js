@@ -3,15 +3,26 @@ const moment = require('moment');
 const multer = require('multer');
 const path = require('path');
 const notificationService = require('../services/notificationService');
+const fs = require('fs');
+
+// Ensure upload directory exists
+const uploadDir = 'uploads/inspo-photos/';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('Created upload directory:', uploadDir);
+}
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/inspo-photos/');
+    console.log('Multer destination called for file:', file.originalname);
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'inspo-' + uniqueSuffix + path.extname(file.originalname));
+    const filename = 'inspo-' + uniqueSuffix + path.extname(file.originalname);
+    console.log('Generated filename:', filename);
+    cb(null, filename);
   }
 });
 
@@ -22,9 +33,11 @@ const upload = multer({
     files: 5 // Max 5 files
   },
   fileFilter: function (req, file, cb) {
+    console.log('Multer fileFilter called for:', file.originalname, 'mimetype:', file.mimetype);
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
+      console.log('File rejected - not an image:', file.originalname);
       cb(new Error('Only image files are allowed'), false);
     }
   }
@@ -34,8 +47,11 @@ const upload = multer({
 exports.book = async (req, res) => {
   upload(req, res, async function (err) {
     if (err) {
+      console.error('Multer upload error:', err);
       return res.status(400).json({ error: err.message });
     }
+
+    console.log('Files uploaded successfully:', req.files ? req.files.length : 0);
 
     try {
       const { clientId, serviceId, date, startTime, endTime, notes, clientNotes } = req.body;
